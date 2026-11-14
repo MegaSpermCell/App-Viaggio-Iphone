@@ -12,10 +12,11 @@ import * as spese from './viste/spese.js';
 import * as cambio from './viste/cambio.js';
 import * as itinerario from './viste/itinerario.js';
 import * as giorno from './viste/giorno.js';
+import * as mappa from './viste/mappa.js';
 import * as impostazioni from './viste/impostazioni.js';
 
 // Le "rotte": a ogni indirizzo corrisponde una schermata.
-//   #/spese   #/cambio   #/itinerario   #/giorno/<id>   #/impostazioni
+//   #/spese   #/cambio   #/itinerario   #/giorno/<id>   #/mappa   #/mappa/<id>   #/impostazioni
 // Ogni schermata ("vista") è un file in js/viste/ con una funzione mostra().
 // Per aggiungerne una: crea il file, importalo qui sopra e aggiungi una riga qui.
 const ROTTE = {
@@ -24,6 +25,7 @@ const ROTTE = {
   itinerario: { titolo: 'Itinerario', vista: itinerario },
   // "scheda" dice quale tasto della barra in basso evidenziare, "indietro" dove porta la freccia
   giorno: { titolo: 'Giorno', vista: giorno, scheda: 'itinerario', indietro: '#/itinerario' },
+  mappa: { titolo: 'Mappa', vista: mappa },
   impostazioni: { titolo: 'Impostazioni', vista: impostazioni },
 };
 const ROTTA_INIZIALE = 'spese';
@@ -53,9 +55,17 @@ async function mostraVista() {
     else link.removeAttribute('aria-current');
   }
 
-  // Cambiando schermata si riparte dall'alto. data-vista serve anche al CSS.
-  if (contenitore.dataset.vista !== nome) contenitore.scrollTop = 0;
-  contenitore.dataset.vista = nome;
+  // Cambiando schermata: quella di prima fa pulizia (la mappa libera la memoria),
+  // si riparte dall'alto e il contenuto nuovo compare con una dissolvenza.
+  const precedente = contenitore.dataset.vista;
+  if (precedente !== nome) {
+    ROTTE[precedente]?.vista.chiudi?.();
+    contenitore.scrollTop = 0;
+    contenitore.classList.remove('entra');
+    void contenitore.offsetWidth; // fa ripartire l'animazione
+    contenitore.classList.add('entra');
+  }
+  contenitore.dataset.vista = nome; // serve anche al CSS
 
   try {
     // La vista può restituire un titolo suo (il giorno restituisce la data).
