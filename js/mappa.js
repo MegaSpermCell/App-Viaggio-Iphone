@@ -25,8 +25,15 @@ export async function creaMappa(elemento, { centro = [20, 60], zoom = 2 } = {}) 
   }).addTo(mappa);
   // Se il riquadro cambia misura dopo la creazione (succede mentre una scheda si
   // apre), la mappa va avvisata, altrimenti una parte resta grigia.
-  setTimeout(() => mappa.invalidateSize(), 300);
+  const timer = setTimeout(() => mappa.invalidateSize(), 300);
+  mappa.on('unload', () => clearTimeout(timer)); // mappa chiusa prima: non serve più
   return { L, mappa };
+}
+
+/** Chiude una mappa: ferma i movimenti in corso e libera la memoria. */
+export function chiudiMappa(mappa) {
+  mappa.stop(); // senza questo, un'animazione rimasta a metà darebbe errore
+  mappa.remove();
 }
 
 /** Un segnaposto rotondo colorato, con dentro un numero o un simbolo. */

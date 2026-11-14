@@ -97,13 +97,42 @@ export async function cercaLuogo(testo) {
   return risultati;
 }
 
-// ---------- Navigazione ---------------------------------------------------------
+// ---------- Più luoghi e navigazione ---------------------------------------------
+//
+// Un'attività ha un luogo principale (`luogo`) e, se è una passeggiata o un giro,
+// altre tappe in ordine (`tappe`). Chi deve trattarli tutti insieme usa luoghiDi().
 
-/** Indirizzo che apre il navigatore (Apple Maps o Google Maps) verso un luogo. */
-export function linkNaviga(luogo, mappe) {
+/** Tutti i luoghi di un'attività, in ordine: il luogo principale e poi le tappe. */
+export function luoghiDi(voce) {
+  return [voce.luogo, ...(voce.tappe ?? [])].filter(Boolean);
+}
+
+/**
+ * Indirizzo che apre il navigatore (Apple Maps o Google Maps) per un'attività.
+ * Con un solo luogo: indicazioni fino a lì. Con più luoghi: un percorso che parte
+ * da dove ti trovi e li tocca tutti in ordine, a piedi o in auto.
+ * Restituisce null se l'attività non ha luoghi.
+ */
+export function linkNaviga(voce, mappe) {
   // Con le coordinate la destinazione è precisa; altrimenti si cerca per nome.
-  const destinazione = encodeURIComponent(luogo.lat != null ? `${luogo.lat},${luogo.lon}` : luogo.nome);
-  return mappe === 'google'
-    ? `https://www.google.com/maps/dir/?api=1&destination=${destinazione}`
-    : `https://maps.apple.com/?daddr=${destinazione}`;
+  const scrivi = (luogo) => encodeURIComponent(luogo.lat != null ? `${luogo.lat},${luogo.lon}` : luogo.nome);
+  const luoghi = luoghiDi(voce);
+  if (luoghi.length === 0) return null;
+
+  const arrivo = scrivi(luoghi.at(-1));
+  const intermedi = luoghi.slice(0, -1).map(scrivi);
+
+  if (intermedi.length === 0) {
+    return mappe === 'google'
+      ? `https://www.google.com/maps/dir/?api=1&destination=${arrivo}`
+      : `https://maps.apple.com/?daddr=${arrivo}`;
+  }
+
+  const inAuto = voce.mezzo === 'auto';
+  if (mappe === 'google') {
+    // Google vuole le tappe intermedie in un solo parametro, separate da "|" (scritto %7C)
+    return `https://www.google.com/maps/dir/?api=1&destination=${arrivo}&waypoints=${intermedi.join('%7C')}&travelmode=${inAuto ? 'driving' : 'walking'}`;
+  }
+  // Apple vuole un parametro "waypoint" per ogni tappa intermedia
+  return `https://maps.apple.com/directions?destination=${arrivo}${intermedi.map((tappa) => `&waypoint=${tappa}`).join('')}&mode=${inAuto ? 'driving' : 'walking'}`;
 }

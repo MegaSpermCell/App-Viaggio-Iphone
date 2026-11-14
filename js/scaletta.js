@@ -7,6 +7,7 @@
 //     10.30 - Santa Sofia @ Sultanahmet
 //     13h Pranzo al Gran Bazar
 //     Passeggiata sul Bosforo
+//     16:00 Giro dei templi @ Wat Pho > Wat Arun > Grand Palace     (più tappe)
 //
 // Vengono ignorati i trattini o i numeri da elenco puntato ("- ", "• ", "1. ").
 
@@ -36,14 +37,17 @@ export function analizzaScaletta(testo) {
     // Il luogo è ciò che segue " @". (Serve lo spazio prima: così un indirizzo
     // email dentro il titolo non viene scambiato per un luogo.)
     const [titolo, ...resto] = riga.split(/\s@\s*/);
-    const luogo = resto.join(' ').trim();
-    if (!titolo.trim() && !luogo) continue;
+    // Più luoghi separati da ">" (o dalla freccia "→") sono le tappe di un percorso.
+    const nomi = resto.join(' ').split(/\s*(?:>|→)\s*/).map((nome) => nome.trim()).filter(Boolean);
+    if (!titolo.trim() && nomi.length === 0) continue;
 
+    // lat e lon (le coordinate) restano vuote: le riempirà la ricerca sulla mappa
+    const luoghi = nomi.map((nome) => ({ nome, lat: null, lon: null }));
     attivita.push({
       ora,
-      titolo: titolo.trim() || luogo,
-      // lat e lon (le coordinate) restano vuote: le riempirà la ricerca sulla mappa
-      luogo: luogo ? { nome: luogo, lat: null, lon: null } : null,
+      titolo: titolo.trim() || nomi[0],
+      luogo: luoghi[0] ?? null,
+      tappe: luoghi.slice(1),
     });
   }
 

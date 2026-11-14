@@ -6,7 +6,7 @@
 //   • toccare direttamente la mappa
 
 import { apriScheda } from './scheda.js';
-import { creaMappa, segnaposto } from './mappa.js';
+import { creaMappa, chiudiMappa, segnaposto } from './mappa.js';
 import { cercaLuogo, leggiCoordinate, eLinkBreve } from './luoghi.js';
 import { esc } from './util.js';
 
@@ -41,7 +41,7 @@ export function apriSchedaLuogo(luogo = null) {
       // La mappa va creata quando la scheda è già visibile, altrimenti non sa quanto è grande.
       await new Promise((risolvi) => requestAnimationFrame(risolvi));
       const { L, mappa } = await creaMappa(trova('#mappa-luogo'));
-      dialog.addEventListener('close', () => mappa.remove());
+      dialog.addEventListener('close', () => chiudiMappa(mappa));
       let puntina = null;
 
       // Sposta la puntina (creandola la prima volta) e, se richiesto, ci porta la mappa.

@@ -3,13 +3,16 @@
 // Un giorno è salvato così:
 //   { id, data: "2026-11-14", titolo, note, attivita: [ … ] }
 // e ogni attività così:
-//   { id, ora: "09:30", titolo, luogo: { nome, lat, lon } oppure null, note, fatto: true/false }
+//   { id, ora: "09:30", titolo, luogo: { nome, lat, lon } oppure null, note, fatto: true/false,
+//     tappe: [ { nome, lat, lon }, … ]   altri luoghi dopo il primo (passeggiate, giri)
+//     mezzo: 'piedi' oppure 'auto'       come si percorrono le tappe }
+// Un giorno può stare in una "cartella" (campo `cartella`, es. "Istanbul").
 
-import { leggi, salva, elimina, leggiImpostazione } from '../db.js';
+import { tutti, leggi, salva, elimina, leggiImpostazione } from '../db.js';
 import { apriScheda, segnalaCampo } from '../scheda.js';
 import { apriSchedaLuogo } from '../scheda-luogo.js';
 import { analizzaScaletta } from '../scaletta.js';
-import { linkNaviga } from '../luoghi.js';
+import { linkNaviga, luoghiDi } from '../luoghi.js';
 import { esc, nuovoId, oggi, formattaGiorno, toast } from '../util.js';
 
 /** Attività in ordine di orario; quelle senza orario restano in fondo. */
@@ -25,10 +28,14 @@ export async function mostra(main, id) {
   }
 
   const ridisegna = () => mostra(main, id);
+  // La freccia "indietro" riporta alla cartella del giorno, se ne ha una.
+  const indietro = giorno.cartella ? `#/itinerario/${encodeURIComponent(giorno.cartella)}` : '#/itinerario';
   const attivita = inOrdine(giorno.attivita);
   const fatte = attivita.filter((voce) => voce.fatto).length;
 
   function rigaAttivita(voce) {
+    const luoghi = luoghiDi(voce);
+    const link = linkNaviga(voce, mappe);
     return `
       <li class="attivita ${voce.fatto ? 'fatta' : ''}">
         <button class="spunta" role="checkbox" aria-checked="${voce.fatto}" data-spunta="${esc(voce.id)}"
@@ -36,10 +43,10 @@ export async function mostra(main, id) {
         <button class="attivita-testo" data-modifica="${esc(voce.id)}">
           ${voce.ora ? `<span class="ora">${esc(voce.ora)}</span>` : ''}
           <strong>${esc(voce.titolo)}</strong>
-          ${voce.luogo ? `<small>📍 ${esc(voce.luogo.nome)}</small>` : ''}
+          ${luoghi.length ? `<small>📍 ${esc(luoghi.map((luogo) => luogo.nome).join(' → '))}</small>` : ''}
           ${voce.note ? `<small>${esc(voce.note)}</small>` : ''}
         </button>
-        ${voce.luogo ? `<a class="tasto-naviga" href="${esc(linkNaviga(voce.luogo, mappe))}" target="_blank" rel="noopener">Naviga</a>` : ''}
+        ${link ? `<a class="tasto-naviga" href="${esc(link)}" target="_blank" rel="noopener">${luoghi.length > 1 ? 'Percorso' : 'Naviga'}</a>` : ''}
       </li>`;
   }
 
@@ -64,13 +71,13 @@ export async function mostra(main, id) {
       <button class="tasto" id="nuova-attivita">＋ Attività</button>
       <button class="tasto secondario" id="incolla-scaletta">Incolla scaletta</button>
     </div>
-    ${attivita.some((voce) => voce.luogo)
+    ${attivita.some((voce) => luoghiDi(voce).length > 0)
       ? `<div class="azioni"><a class="tasto secondario" href="#/mappa/${esc(giorno.id)}">🗺️ Mappa del giorno</a></div>`
       : ''}`;
 
   main.querySelector('#modifica-giorno').addEventListener('click', async () => {
     const esito = await apriSchedaGiorno(giorno);
-    if (esito === 'eliminato') location.hash = '#/itinerario';
+    if (esito === 'eliminato') location.hash = indietro;
     else if (esito) ridisegna();
   });
 
@@ -100,8 +107,9 @@ export async function mostra(main, id) {
     }
   });
 
-  // Il testo restituito diventa il titolo nella barra in alto, es. "sabato 14 novembre".
-  return formattaGiorno(giorno.data, { weekday: 'long', day: 'numeric', month: 'long' });
+  // Ciò che viene restituito arriva ad app.js: il titolo per la barra in alto
+  // (es. "sabato 14 novembre") e dove porta la freccia "indietro".
+  return { titolo: formattaGiorno(giorno.data, { weekday: 'long', day: 'numeric', month: 'long' }), indietro };
 }
 
 // ---------- Schede ------------------------------------------------------------
@@ -110,22 +118,41 @@ export async function mostra(main, id) {
  * Scheda per creare o modificare un giorno. La usa anche la schermata Itinerario.
  * Restituisce il giorno salvato, 'eliminato', oppure null se si è annullato.
  */
-export function apriSchedaGiorno(giorno = null, dataProposta = oggi()) {
+export async function apriSchedaGiorno(giorno = null, proposta = {}) {
+  // I nomi delle cartelle già usate, da suggerire mentre si scrive.
+  const cartelle = [...new Set((await tutti('giorni')).map((altro) => altro.cartella).filter(Boolean))].sort();
+
   return apriScheda({
     titolo: giorno ? 'Modifica giorno' : 'Nuovo giorno',
     corpo: `
       <label class="campo-etichetta">Data
-        <input class="campo" type="date" name="data" required value="${esc(giorno?.data ?? dataProposta)}">
+        <input class="campo" type="date" name="data" required value="${esc(giorno?.data ?? proposta.data ?? oggi())}">
       </label>
       <label class="campo-etichetta">Titolo
         <input class="campo" type="text" name="titolo" autocomplete="off" placeholder="es. Arrivo a Istanbul" value="${esc(giorno?.titolo)}">
       </label>
+      <label class="campo-etichetta">Cartella (facoltativa)
+        <input class="campo" type="text" name="cartella" list="cartelle-esistenti" autocomplete="off"
+          placeholder="es. Istanbul" value="${esc(giorno?.cartella ?? proposta.cartella)}">
+        <datalist id="cartelle-esistenti">${cartelle.map((nome) => `<option value="${esc(nome)}">`).join('')}</datalist>
+      </label>
+      ${cartelle.length ? `
+        <div class="pillole a-capo" id="scelta-cartella">
+          ${cartelle.map((nome) => `<button type="button" data-cartella="${esc(nome)}">📁 ${esc(nome)}</button>`).join('')}
+        </div>` : ''}
       <label class="campo-etichetta">Note
         <textarea class="campo" name="note" placeholder="Voli, prenotazioni, cose da ricordare…">${esc(giorno?.note)}</textarea>
       </label>
       ${giorno ? '<button type="button" class="tasto pericolo largo" data-azione="elimina">Elimina giorno</button>' : ''}`,
 
     prepara(dialog, chiudi) {
+      // Toccando una cartella esistente il suo nome finisce nel campo.
+      for (const tasto of dialog.querySelectorAll('[data-cartella]')) {
+        tasto.addEventListener('click', () => {
+          dialog.querySelector('[name="cartella"]').value = tasto.dataset.cartella;
+        });
+      }
+
       dialog.querySelector('[data-azione="elimina"]')?.addEventListener('click', async () => {
         if (!confirm('Eliminare questo giorno e tutta la sua scaletta?')) return;
         await elimina('giorni', giorno.id);
@@ -138,6 +165,7 @@ export function apriSchedaGiorno(giorno = null, dataProposta = oggi()) {
         id: giorno?.id ?? nuovoId(),
         data: campi.data,
         titolo: campi.titolo.trim(),
+        cartella: campi.cartella.trim(),
         note: campi.note.trim(),
         attivita: giorno?.attivita ?? [],
       };
@@ -153,6 +181,11 @@ function apriSchedaAttivita(giorno, voce = null) {
   let posizioneScelta = null;
   const testoTastoPosizione = (luogo) => (luogo?.lat != null ? '📍 Posizione impostata · cambia' : '📍 Scegli la posizione sulla mappa');
 
+  // Le tappe successive al primo luogo e il modo di spostarsi. Lavoro su una copia:
+  // se si annulla la scheda, l'attività resta com'era.
+  const tappe = structuredClone(voce?.tappe ?? []);
+  let mezzo = voce?.mezzo ?? 'piedi';
+
   return apriScheda({
     titolo: voce ? 'Modifica attività' : 'Nuova attività',
     corpo: `
@@ -166,6 +199,16 @@ function apriSchedaAttivita(giorno, voce = null) {
         <input class="campo" type="text" name="luogo" autocomplete="off" placeholder="Nome o indirizzo" value="${esc(voce?.luogo?.nome)}">
       </label>
       <button type="button" class="tasto secondario largo" data-azione="posizione">${testoTastoPosizione(voce?.luogo)}</button>
+
+      <div class="campo-etichetta">Altre tappe (per passeggiate e giri)
+        <ul class="lista" id="elenco-tappe" hidden></ul>
+        <button type="button" class="tasto secondario largo" data-azione="aggiungi-tappa">＋ Aggiungi tappa</button>
+        <div class="pillole" id="scelta-mezzo" role="group" aria-label="Come ti sposti" hidden>
+          <button type="button" data-mezzo="piedi">🚶 A piedi</button>
+          <button type="button" data-mezzo="auto">🚗 In auto</button>
+        </div>
+      </div>
+
       <label class="campo-etichetta">Note
         <textarea class="campo" name="note">${esc(voce?.note)}</textarea>
       </label>
@@ -187,6 +230,55 @@ function apriSchedaAttivita(giorno, voce = null) {
         campoLuogo.value = scelto.nome;
         tastoPosizione.textContent = testoTastoPosizione(scelto);
       });
+
+      // ---- Tappe ----
+      const elencoTappe = dialog.querySelector('#elenco-tappe');
+      const sceltaMezzo = dialog.querySelector('#scelta-mezzo');
+
+      // Ridisegna l'elenco delle tappe. Si richiama dopo ogni aggiunta, modifica o rimozione.
+      function disegnaTappe() {
+        elencoTappe.hidden = tappe.length === 0;
+        sceltaMezzo.hidden = tappe.length === 0;
+        elencoTappe.innerHTML = tappe.map((tappa, indice) => `
+          <li class="riga-tappa">
+            <button type="button" class="riga" data-tappa="${indice}">
+              <span class="numero-tappa">${indice + 2}</span>
+              <span class="riga-testo"><strong>${esc(tappa.nome)}</strong><small>${tappa.lat != null ? 'posizione impostata' : 'senza posizione: tocca per sceglierla'}</small></span>
+            </button>
+            <button type="button" class="tasto-testo" data-togli="${indice}" aria-label="Togli ${esc(tappa.nome)}">✕</button>
+          </li>`).join('');
+        for (const tasto of sceltaMezzo.querySelectorAll('[data-mezzo]')) {
+          tasto.setAttribute('aria-pressed', tasto.dataset.mezzo === mezzo);
+        }
+      }
+
+      dialog.querySelector('[data-azione="aggiungi-tappa"]').addEventListener('click', async () => {
+        const nuova = await apriSchedaLuogo();
+        if (!nuova) return;
+        tappe.push(nuova);
+        disegnaTappe();
+      });
+
+      elencoTappe.addEventListener('click', async (evento) => {
+        const togli = evento.target.closest('[data-togli]');
+        const riga = evento.target.closest('[data-tappa]');
+        if (togli) {
+          tappe.splice(Number(togli.dataset.togli), 1);
+        } else if (riga) {
+          const indice = Number(riga.dataset.tappa);
+          const modificata = await apriSchedaLuogo(tappe[indice]);
+          if (modificata) tappe[indice] = modificata;
+        }
+        disegnaTappe();
+      });
+
+      for (const tasto of sceltaMezzo.querySelectorAll('[data-mezzo]')) {
+        tasto.addEventListener('click', () => {
+          mezzo = tasto.dataset.mezzo;
+          disegnaTappe();
+        });
+      }
+      disegnaTappe();
 
       dialog.querySelector('[data-azione="elimina"]')?.addEventListener('click', async () => {
         if (!confirm('Eliminare questa attività?')) return;
@@ -214,6 +306,8 @@ function apriSchedaAttivita(giorno, voce = null) {
         ora: campi.ora,
         titolo: campi.titolo.trim(),
         luogo,
+        tappe,
+        mezzo,
         note: campi.note.trim(),
         fatto: voce?.fatto ?? false,
       };
@@ -231,11 +325,12 @@ function apriSchedaIncolla(giorno) {
     titolo: 'Incolla scaletta',
     testoSalva: 'Aggiungi',
     corpo: `
-      <p class="nota">Una riga per attività. L’orario all’inizio e il luogo dopo la chiocciola sono facoltativi:</p>
+      <p class="nota">Una riga per attività. L’orario all’inizio e il luogo dopo la chiocciola sono facoltativi. Per una passeggiata, separa le tappe con &gt;</p>
       <pre class="esempio">9:00 Colazione
 10:30 Santa Sofia @ Sultanahmet
 13h Pranzo al Gran Bazar
-Passeggiata sul Bosforo</pre>
+Passeggiata sul Bosforo
+16:00 Giro @ Galata &gt; Karaköy &gt; Eminönü</pre>
       <textarea class="campo alto" name="testo" required aria-label="Testo della scaletta" placeholder="Incolla o scrivi qui"></textarea>`,
 
     async alSalvataggio(campi, dialog) {

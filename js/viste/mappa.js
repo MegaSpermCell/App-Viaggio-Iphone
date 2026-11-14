@@ -5,8 +5,8 @@
 // I luoghi di ogni giorno sono numerati nell'ordine della scaletta e uniti da una linea.
 
 import { tutti, salva, leggiImpostazione } from '../db.js';
-import { creaMappa, segnaposto, coloreGiorno } from '../mappa.js';
-import { cercaLuogo, linkNaviga } from '../luoghi.js';
+import { creaMappa, chiudiMappa, segnaposto, coloreGiorno } from '../mappa.js';
+import { cercaLuogo, linkNaviga, luoghiDi } from '../luoghi.js';
 import { inOrdine } from './giorno.js';
 import { esc, formattaGiorno, toast } from '../util.js';
 
@@ -14,7 +14,7 @@ let mappaAperta = null;
 
 /** Chiamata da app.js quando si lascia la schermata: libera la memoria della mappa. */
 export function chiudi() {
-  mappaAperta?.remove();
+  if (mappaAperta) chiudiMappa(mappaAperta);
   mappaAperta = null;
 }
 
@@ -29,9 +29,10 @@ export async function mostra(main, idGiorno) {
   const senzaPosizione = [];  // attività con il nome di un luogo ma senza coordinate
   giorni.forEach((giorno, indice) => {
     if (giornoScelto && giorno !== giornoScelto) return;
-    const conLuogo = inOrdine(giorno.attivita).filter((voce) => voce.luogo);
-    const punti = conLuogo.filter((voce) => voce.luogo.lat != null);
-    senzaPosizione.push(...conLuogo.filter((voce) => voce.luogo.lat == null).map((voce) => ({ giorno, voce })));
+    // Un "punto" per ogni luogo: un'attività con tre tappe dà tre punti.
+    const luoghi = inOrdine(giorno.attivita).flatMap((voce) => luoghiDi(voce).map((luogo) => ({ voce, luogo })));
+    const punti = luoghi.filter((punto) => punto.luogo.lat != null);
+    senzaPosizione.push(...luoghi.filter((punto) => punto.luogo.lat == null).map((punto) => ({ giorno, luogo: punto.luogo })));
     if (punti.length > 0) gruppi.push({ giorno, colore: coloreGiorno(indice), punti });
   });
   const quantiPunti = gruppi.reduce((totale, gruppo) => totale + gruppo.punti.length, 0);
@@ -68,19 +69,20 @@ export async function mostra(main, idGiorno) {
   const tuttiIPunti = [];
 
   for (const { giorno, colore, punti } of gruppi) {
-    const percorso = punti.map((voce) => [voce.luogo.lat, voce.luogo.lon]);
+    const percorso = punti.map((punto) => [punto.luogo.lat, punto.luogo.lon]);
     tuttiIPunti.push(...percorso);
     if (percorso.length > 1) L.polyline(percorso, { color: colore, weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(mappa);
 
-    punti.forEach((voce, indice) => {
+    punti.forEach(({ voce, luogo }, indice) => {
       const quando = [formattaGiorno(giorno.data), voce.ora].filter(Boolean).join(' · ');
-      L.marker([voce.luogo.lat, voce.luogo.lon], { icon: segnaposto(L, indice + 1, colore), title: voce.titolo })
+      const quantiLuoghi = luoghiDi(voce).length;
+      L.marker([luogo.lat, luogo.lon], { icon: segnaposto(L, indice + 1, colore), title: voce.titolo })
         .addTo(mappa)
         .bindPopup(`
           <strong>${indice + 1}. ${esc(voce.titolo)}</strong><br>
           ${esc(quando)}<br>
-          📍 ${esc(voce.luogo.nome)}<br>
-          <a class="popup-naviga" href="${esc(linkNaviga(voce.luogo, mappe))}" target="_blank" rel="noopener">Naviga</a>
+          📍 ${esc(luogo.nome)}<br>
+          <a class="popup-naviga" href="${esc(linkNaviga(quantiLuoghi > 1 ? voce : { luogo }, mappe))}" target="_blank" rel="noopener">${quantiLuoghi > 1 ? 'Percorso' : 'Naviga'}</a>
           · <a class="popup-naviga" href="#/giorno/${esc(giorno.id)}">Apri il giorno</a>`);
     });
   }
@@ -93,12 +95,12 @@ export async function mostra(main, idGiorno) {
     tasto.disabled = true;
     let trovati = 0;
     try {
-      for (const [indice, { giorno, voce }] of senzaPosizione.entries()) {
+      for (const [indice, { giorno, luogo }] of senzaPosizione.entries()) {
         tasto.textContent = `${indice + 1} di ${senzaPosizione.length}…`;
-        const [primo] = await cercaLuogo(voce.luogo.nome); // una richiesta al secondo: ci pensa cercaLuogo
+        const [primo] = await cercaLuogo(luogo.nome); // una richiesta al secondo: ci pensa cercaLuogo
         if (!primo) continue;
-        voce.luogo.lat = primo.lat;
-        voce.luogo.lon = primo.lon;
+        luogo.lat = primo.lat;
+        luogo.lon = primo.lon;
         await salva('giorni', giorno);
         trovati += 1;
       }
