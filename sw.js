@@ -9,7 +9,7 @@
 // │  2. se aggiungi un file all'app, aggiungilo anche all'elenco FILE.        │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-const VERSIONE = 'v1';
+const VERSIONE = 'v2';
 const CACHE = `viaggio-${VERSIONE}`;
 
 // Tutti i file che servono per funzionare offline.
@@ -24,8 +24,11 @@ const FILE = [
   'js/cambi.js',
   'js/dati.js',
   'js/db.js',
+  'js/luoghi.js',
+  'js/mappa.js',
   'js/scaletta.js',
   'js/scheda.js',
+  'js/scheda-luogo.js',
   'js/scheda-spesa.js',
   'js/tastierino.js',
   'js/util.js',
@@ -33,11 +36,19 @@ const FILE = [
   'js/viste/giorno.js',
   'js/viste/impostazioni.js',
   'js/viste/itinerario.js',
+  'js/viste/mappa.js',
   'js/viste/spese.js',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'vendor/leaflet/leaflet.css',
+  'vendor/leaflet/leaflet-src.esm.js',
 ];
+
+// Le immagini della mappa ("tessere") hanno una cache a parte, che non viene
+// svuotata quando l'app si aggiorna. Si tengono le ultime MAX_TESSERE viste.
+const CACHE_MAPPE = 'mappe-viaggio';
+const MAX_TESSERE = 600;
 
 // 1) INSTALLAZIONE: scarica tutti i file e li mette nella cache di questa versione.
 //    { cache: 'reload' } obbliga a prenderli freschi dal server, non da copie vecchie.
@@ -70,8 +81,14 @@ self.addEventListener('fetch', (evento) => {
   const richiesta = evento.request;
   const stessoSito = new URL(richiesta.url).origin === self.location.origin;
 
-  // Le richieste ad altri siti (cambi, e più avanti mappe) vanno dritte in rete:
-  // ci pensa l'app a salvarne i risultati.
+  // Tessere della mappa: quelle già viste si prendono dal telefono.
+  if (new URL(richiesta.url).hostname === 'tile.openstreetmap.org') {
+    evento.respondWith(tessera(richiesta));
+    return;
+  }
+
+  // Le altre richieste verso altri siti (cambi, ricerca dei luoghi) vanno dritte
+  // in rete: ci pensa l'app a salvarne i risultati.
   if (richiesta.method !== 'GET' || !stessoSito) return;
 
   evento.respondWith((async () => {
@@ -89,3 +106,19 @@ self.addEventListener('fetch', (evento) => {
     }
   })());
 });
+
+// Una tessera della mappa: dalla cache se c'è, altrimenti dalla rete (e la si conserva).
+async function tessera(richiesta) {
+  const cache = await caches.open(CACHE_MAPPE);
+  const copia = await cache.match(richiesta);
+  if (copia) return copia;
+
+  const risposta = await fetch(richiesta);
+  if (risposta.ok) {
+    await cache.put(richiesta, risposta.clone());
+    // Se sono troppe si eliminano le più vecchie (keys() le elenca dalla più vecchia).
+    const chiavi = await cache.keys();
+    for (const vecchia of chiavi.slice(0, Math.max(0, chiavi.length - MAX_TESSERE))) cache.delete(vecchia);
+  }
+  return risposta;
+}

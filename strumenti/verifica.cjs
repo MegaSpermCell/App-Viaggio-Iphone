@@ -17,6 +17,7 @@ const { chromium } = require('playwright');
 const RADICE = path.join(__dirname, '..');
 const PREFISSO = '/App-Viaggio-Iphone/'; // come su GitHub Pages: l'app sta in una sottocartella
 const CARTELLA_SCHERMATE = process.argv[2] ?? null;
+const VERSIONE = fs.readFileSync(path.join(RADICE, 'sw.js'), 'utf8').match(/const VERSIONE = '([^']+)'/)[1];
 
 // iPhone 13: lo schermo è 390×844; tolte tacca e barra Home ne restano circa 763.
 const SCHERMO = { width: 390, height: 844 };
@@ -89,7 +90,7 @@ function controllaElencoServiceWorker() {
   titolo('Elenco dei file nel service worker');
   const sw = fs.readFileSync(path.join(RADICE, 'sw.js'), 'utf8');
   const elenco = sw.slice(sw.indexOf('const FILE = ['), sw.indexOf('];')).match(/'([^']+)'/g).map((voce) => voce.slice(1, -1));
-  const suDisco = ['index.html', 'manifest.webmanifest', ...elencaFile('css', ['.css']), ...elencaFile('js', ['.js']), ...elencaFile('icons', ['.png'])];
+  const suDisco = ['index.html', 'manifest.webmanifest', ...elencaFile('css', ['.css']), ...elencaFile('js', ['.js']), ...elencaFile('icons', ['.png']), ...elencaFile('vendor', ['.js', '.css'])];
 
   const mancanti = suDisco.filter((file) => !elenco.includes(file));
   const inesistenti = elenco.filter((file) => file !== './' && !fs.existsSync(path.join(RADICE, file)));
@@ -129,6 +130,16 @@ async function controllaFunzioniPure() {
   controllo('tastierino: massimo due decimali', digita('1,234') === '1,23');
   controllo('tastierino: "05" diventa "5", "," da solo diventa "0,"', digita('05') === '5' && digita(',') === '0,');
   controllo('tastierino: ⌫ cancella l’ultimo carattere', digita('12⌫') === '1');
+
+  const { leggiCoordinate, eLinkBreve } = await carica('js/luoghi.js');
+  const coordinate = (testo) => { const c = leggiCoordinate(testo); return c ? `${c.lat},${c.lon}` : null; };
+  controllo('coordinate incollate: "41.0086, 28.9802"', coordinate('41.0086, 28.9802') === '41.0086,28.9802');
+  controllo('coordinate con segno meno (Nuova Zelanda)', coordinate('-41.5134 173.9612') === '-41.5134,173.9612');
+  controllo('link Google Maps: vince il segnaposto (!3d…!4d…)', coordinate('https://www.google.com/maps/place/X/@41.0,28.9,17z/data=!3d41.0086!4d28.9802') === '41.0086,28.9802');
+  controllo('link Google Maps con @lat,lon', coordinate('https://www.google.com/maps/@-36.8485,174.7633,15z') === '-36.8485,174.7633');
+  controllo('link con ?q=lat,lon e link Apple con ll=', coordinate('https://maps.google.com/?q=13.7563,100.5018') === '13.7563,100.5018' && coordinate('https://maps.apple.com/?ll=41.01,28.97&z=10') === '41.01,28.97');
+  controllo('testo normale e coordinate impossibili → nessuna posizione', coordinate('Santa Sofia') === null && coordinate('95.0, 200.0') === null);
+  controllo('link breve riconosciuto', eLinkBreve('https://maps.app.goo.gl/abc123') && !eLinkBreve('https://www.google.com/maps/@1.5,2.5,3z'));
 
   const cambi = { tassi: { EUR: 1, NZD: 2, THB: 40 }, manuali: { THB: 50 } };
   controllo('conversione: 10 NZD = 5 EUR', converti(10, 'NZD', 'EUR', cambi) === 5);
@@ -199,7 +210,7 @@ async function provaNelBrowser(indirizzo) {
   });
   controllo('service worker registrato e attivo', swAttivo === 'activated' || swAttivo === 'activating', swAttivo);
   await pagina.waitForFunction(() => navigator.serviceWorker.controller !== null);
-  const inCache = await pagina.evaluate(async () => (await (await caches.open('viaggio-v1')).keys()).length);
+  const inCache = await pagina.evaluate(async (nome) => (await (await caches.open(nome)).keys()).length, `viaggio-${VERSIONE}`);
   controllo('file dell’app salvati in cache', inCache >= 20, `${inCache} file`);
   controllo('manifest collegato', (await pagina.locator('link[rel="manifest"]').count()) === 1);
   controllo('icona per iPhone presente', (await pagina.request.get(`${indirizzo}icons/apple-touch-icon.png`)).ok());
@@ -245,20 +256,20 @@ async function provaNelBrowser(indirizzo) {
   await schermata(pagina, '02-nuova-spesa');
   await pagina.click('dialog[open] [data-categoria="ristoranti"]');
   await pagina.waitForSelector('dialog[open]', { state: 'detached' });
-  await pagina.waitForSelector('[data-spesa]');
-  const riga = await pagina.textContent('[data-spesa]');
+  await pagina.waitForSelector('[data-voce]');
+  const riga = await pagina.textContent('[data-voce]');
   controllo('nuova spesa: 25,50 NZD in Ristoranti e bar', riga.includes('25,50') && riga.includes('NZD') && riga.includes('Ristoranti'), riga.replace(/\s+/g, ' ').trim());
   const salvata = (await leggiDalDb(pagina, 'spese'))[0];
   controllo('conversione in euro salvata con la spesa', Math.abs(salvata.importoEur - 25.5 / tassi.NZD) < 0.001, `${anteprima} · cambio ${salvata.cambio}`);
   controllo('data e ora automatiche', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(salvata.data), salvata.data);
 
-  await pagina.click('[data-spesa]');
+  await pagina.click('[data-voce]');
   await pagina.fill('dialog[open] [name="nota"]', 'Cena <al> porto');
   await pagina.click('dialog[open] [data-categoria="alimentari"]');
   await pagina.click('dialog[open] button[type="submit"]');
   await pagina.waitForSelector('dialog[open]', { state: 'detached' });
-  await pagina.waitForFunction(() => document.querySelector('[data-spesa]')?.textContent.includes('Cena <al> porto'));
-  controllo('modifica: nota e categoria cambiate', (await pagina.textContent('[data-spesa]')).includes('Spesa alimentare'));
+  await pagina.waitForFunction(() => document.querySelector('[data-voce]')?.textContent.includes('Cena <al> porto'));
+  controllo('modifica: nota e categoria cambiate', (await pagina.textContent('[data-voce]')).includes('Spesa alimentare'));
   controllo('modifica: il cambio del giorno della spesa non cambia', (await leggiDalDb(pagina, 'spese'))[0].cambio === salvata.cambio);
 
   // Una seconda spesa, in baht, per avere due valute nei totali
@@ -267,9 +278,9 @@ async function provaNelBrowser(indirizzo) {
   await pagina.click('dialog[open] [data-valuta="THB"]');
   await pagina.click('dialog[open] [data-categoria="trasporti"]');
   await pagina.waitForSelector('dialog[open]', { state: 'detached' });
-  await pagina.waitForFunction(() => document.querySelectorAll('[data-spesa]').length === 2);
+  await pagina.waitForFunction(() => document.querySelectorAll('[data-voce]').length === 2);
   const totaleAtteso = 25.5 / tassi.NZD + 300 / tassi.THB;
-  const totaleMostrato = await pagina.textContent('.riepilogo .carta:nth-child(2) strong');
+  const totaleMostrato = await pagina.textContent('.evidenza strong');
   controllo('totale del viaggio in euro', totaleMostrato.startsWith(totaleAtteso.toFixed(2).replace('.', ',')), `${totaleMostrato} (atteso ${totaleAtteso.toFixed(2)})`);
   await schermata(pagina, '03-spese');
 
@@ -348,6 +359,43 @@ async function provaNelBrowser(indirizzo) {
   controllo('elenco dei giorni con avanzamento', (await pagina.textContent('.giorno-carta')).includes('1 di 5 fatte'));
   await schermata(pagina, '06-itinerario');
 
+  // ---- Mappa ----
+  titolo('Mappa e posizione dei luoghi');
+  await pagina.click('.giorno-carta');
+  await pagina.click('.attivita:nth-child(2) .attivita-testo'); // Santa Sofia @ Sultanahmet
+  await pagina.click('dialog[open] [data-azione="posizione"]');
+  await pagina.waitForSelector('#mappa-luogo .leaflet-tile-loaded', { timeout: 20_000 });
+  await pagina.fill('[name="ricerca"]', 'Santa Sofia, Istanbul');
+  await pagina.click('[data-azione="cerca"]');
+  await pagina.waitForSelector('[data-risultato="0"]', { timeout: 20_000 });
+  controllo('ricerca del luogo per nome (Nominatim)', true, (await pagina.textContent('[data-risultato="0"]')).replace(/\s+/g, ' ').trim().slice(0, 70));
+  await pagina.click('[data-risultato="0"]');
+  await schermata(pagina, '11-scegli-luogo');
+  await pagina.click('dialog:has(#mappa-luogo) button[type="submit"]');
+  await pagina.waitForSelector('#mappa-luogo', { state: 'detached' });
+  controllo('la scheda dell’attività mostra «Posizione impostata»', (await pagina.textContent('[data-azione="posizione"]')).includes('Posizione impostata'));
+  await pagina.click('dialog[open] button[type="submit"]');
+  await pagina.waitForSelector('dialog[open]', { state: 'detached' });
+  const santaSofia = (await leggiDalDb(pagina, 'giorni'))[0].attivita.find((voce) => voce.titolo === 'Santa Sofia').luogo;
+  controllo('coordinate salvate (Istanbul)', Math.abs(santaSofia.lat - 41.0) < 0.1 && Math.abs(santaSofia.lon - 28.98) < 0.1, `${santaSofia.nome}: ${santaSofia.lat}, ${santaSofia.lon}`);
+  controllo('«Naviga» ora usa le coordinate', (await pagina.getAttribute('.attivita:nth-child(2) .tasto-naviga', 'href')).includes(encodeURIComponent(`${santaSofia.lat},${santaSofia.lon}`)));
+
+  await pagina.click('a[href^="#/mappa/"]'); // «Mappa del giorno»
+  await pagina.waitForSelector('#mappa-viaggio .segnaposto');
+  controllo('mappa del giorno: 1 luogo con posizione, 1 da trovare', (await pagina.locator('.segnaposto').count()) === 1 && (await pagina.textContent('.avviso')).includes('1 luogo'));
+  await pagina.click('#trova-posizioni');
+  await pagina.waitForFunction(() => document.querySelectorAll('.segnaposto').length === 2, null, { timeout: 25_000 });
+  controllo('«Trovali» trova la posizione del luogo che aveva solo il nome', true);
+  controllo('punti numerati in ordine e uniti da una linea', (await pagina.locator('.segnaposto').allTextContents()).join() === '1,2' && (await pagina.locator('#mappa-viaggio path.leaflet-interactive').count()) === 1);
+  await pagina.waitForSelector('#mappa-viaggio .leaflet-tile-loaded', { timeout: 20_000 });
+  await pagina.waitForTimeout(1500); // lascia arrivare (e salvare) tutte le tessere
+  await pagina.click('.segnaposto >> nth=0');
+  controllo('toccando un punto: titolo, orario e «Naviga»', (await pagina.textContent('.leaflet-popup-content')).includes('1. Santa Sofia') && (await pagina.locator('.leaflet-popup-content .popup-naviga').count()) === 2);
+  await schermata(pagina, '12-mappa');
+  await pagina.click('.barra-bassa [data-scheda="mappa"]');
+  await pagina.waitForSelector('.filtro-giorni a[aria-current="true"]:has-text("Tutti")');
+  controllo('mappa di tutto il viaggio', (await pagina.locator('.segnaposto').count()) === 2 && (await pagina.textContent('#titolo')) === 'Mappa');
+
   // ---- Impostazioni e backup ----
   titolo('Impostazioni e backup');
   await pagina.click('.barra-bassa [data-scheda="impostazioni"]');
@@ -386,15 +434,15 @@ async function provaNelBrowser(indirizzo) {
   const [scaricoCsv] = await Promise.all([pagina.waitForEvent('download'), pagina.click('#esporta-csv')]);
   const csv = fs.readFileSync(await scaricoCsv.path(), 'utf8');
   const righeCsv = csv.replace('﻿', '').split('\r\n');
-  controllo('CSV: intestazione e una riga per spesa', righeCsv.length === 4 && righeCsv[0].startsWith('Data;Ora;Importo;Valuta'), righeCsv[1]);
-  const rigaCena = righeCsv.find((rigaCsv) => rigaCsv.includes(';25,50;NZD;')) ?? '';
+  controllo('CSV: intestazione e una riga per spesa', righeCsv.length === 4 && righeCsv[0].startsWith('Data;Ora;Tipo;Importo;Valuta'), righeCsv[1]);
+  const rigaCena = righeCsv.find((rigaCsv) => rigaCsv.includes(';Spesa;25,50;NZD;')) ?? '';
   controllo('CSV: decimali con la virgola e testo conservato', rigaCena.endsWith('Spesa alimentare;Cena <al> porto'), rigaCena);
 
   // Cancello una spesa e poi importo il backup: deve tornare tutto com'era.
   await pagina.click('.barra-bassa [data-scheda="spese"]');
-  await pagina.click('[data-spesa]');
+  await pagina.click('[data-voce]');
   await pagina.click('dialog[open] [data-azione="elimina"]');
-  await pagina.waitForFunction(() => document.querySelectorAll('[data-spesa]').length === 2);
+  await pagina.waitForFunction(() => document.querySelectorAll('[data-voce]').length === 2);
   await pagina.click('.barra-bassa [data-scheda="impostazioni"]');
   await pagina.waitForSelector('#importa-backup');
   await pagina.setInputFiles('#importa-backup', { name: 'backup.json', mimeType: 'application/json', buffer: fs.readFileSync(fileBackup) });
@@ -410,13 +458,13 @@ async function provaNelBrowser(indirizzo) {
   await pagina.click('.barra-bassa [data-scheda="spese"]');
   await contesto.setOffline(true);
   await pagina.reload();
-  await pagina.waitForSelector('[data-spesa]');
-  controllo('offline: l’app si apre e i dati ci sono', (await pagina.locator('[data-spesa]').count()) === 3);
+  await pagina.waitForSelector('[data-voce]');
+  controllo('offline: l’app si apre e i dati ci sono', (await pagina.locator('[data-voce]').count()) === 3);
   await pagina.click('#nuova-spesa');
   await digita(pagina, '12');
   await pagina.click('dialog[open] [data-valuta="TRY"]');
   await pagina.click('dialog[open] [data-categoria="altro"]');
-  await pagina.waitForFunction(() => document.querySelectorAll('[data-spesa]').length === 4);
+  await pagina.waitForFunction(() => document.querySelectorAll('[data-voce]').length === 4);
   const speseOffline = await leggiDalDb(pagina, 'spese');
   controllo('offline: nuova spesa con il cambio manuale (60)', speseOffline.some((spesa) => spesa.valuta === 'TRY' && spesa.cambio === 60));
   await pagina.click('.barra-bassa [data-scheda="cambio"]');
@@ -431,12 +479,19 @@ async function provaNelBrowser(indirizzo) {
   await pagina.click('.giorno-carta');
   await pagina.waitForSelector('.attivita');
   controllo('offline: itinerario disponibile', (await pagina.locator('.attivita').count()) === 5);
+  await pagina.click('.barra-bassa [data-scheda="mappa"]');
+  await pagina.waitForSelector('#mappa-viaggio .segnaposto');
+  await pagina.waitForSelector('#mappa-viaggio .leaflet-tile-loaded', { timeout: 10_000 }).catch(() => {});
+  controllo('offline: la mappa già vista si rivede (punti e tessere salvate)', (await pagina.locator('.segnaposto').count()) === 2 && (await pagina.locator('#mappa-viaggio .leaflet-tile-loaded').count()) > 0);
+  await pagina.click('.barra-bassa [data-scheda="itinerario"]');
+  await pagina.click('.giorno-carta');
+  await pagina.waitForSelector('.attivita');
   controllo('«Naviga» segue la scelta Google Maps', (await pagina.getAttribute('.tasto-naviga', 'href')).startsWith('https://www.google.com/maps/dir/?api=1&destination='));
   await contesto.setOffline(false);
 
   // ---- Aggiornamento dell'app ----
   titolo('Aggiornamento a una nuova versione');
-  server.versioneFinta = 'v2-prova';
+  server.versioneFinta = 'v2-prova'; // una versione che ancora non esiste
   await pagina.goto(`${indirizzo}#/impostazioni`);
   await pagina.waitForSelector('#controlla-aggiornamenti');
   await pagina.click('#controlla-aggiornamenti');
@@ -447,15 +502,39 @@ async function provaNelBrowser(indirizzo) {
   controllo('dopo «Aggiorna» è attiva la versione nuova', true);
   controllo('i dati sopravvivono all’aggiornamento', (await leggiDalDb(pagina, 'spese')).length === 4);
   const cacheRimaste = await pagina.evaluate(() => caches.keys());
-  controllo('la cache della versione vecchia è stata eliminata', cacheRimaste.join() === 'viaggio-v2-prova', cacheRimaste.join());
+  controllo('la cache della versione vecchia è stata eliminata', cacheRimaste.filter((nome) => nome.startsWith('viaggio-')).join() === 'viaggio-v2-prova', cacheRimaste.join());
+  controllo('le tessere della mappa salvate restano', cacheRimaste.includes('mappe-viaggio'));
   server.versioneFinta = null;
+
+  // ---- Entrate e saldo disponibile ----
+  titolo('Entrate (soldi ricevuti)');
+  await pagina.goto(`${indirizzo}#/spese`);
+  await pagina.waitForSelector('#nuova-entrata');
+  controllo('senza entrate si vede «Speso in totale»', (await pagina.textContent('.evidenza .etichetta')) === 'Speso in totale');
+  const spesoPrima = (await leggiDalDb(pagina, 'spese')).reduce((totale, voce) => totale + voce.importoEur, 0);
+  await pagina.click('#nuova-entrata');
+  await pagina.waitForSelector('dialog[open] [data-azione="aggiungi-entrata"]');
+  controllo('la scheda dell’entrata non chiede una categoria', (await pagina.locator('dialog[open] [data-categoria]').count()) === 0);
+  await digita(pagina, '2000');
+  await pagina.click('dialog[open] [data-valuta="NZD"]');
+  await pagina.fill('dialog[open] [name="nota"]', 'Stipendio');
+  await pagina.click('dialog[open] [data-azione="aggiungi-entrata"]');
+  await pagina.waitForSelector('.riga.entrata');
+  const tassoNzd = (await leggiDalDb(pagina, 'impostazioni', 'cambi')).valore.tassi.NZD;
+  const disponibileAtteso = 2000 / tassoNzd - spesoPrima;
+  const disponibileMostrato = await pagina.textContent('.evidenza strong');
+  controllo('«Disponibile» = entrate − spese', (await pagina.textContent('.evidenza .etichetta')) === 'Disponibile' && disponibileMostrato === `${formato(disponibileAtteso)} €`, `${disponibileMostrato} (atteso ${disponibileAtteso.toFixed(2)})`);
+  controllo('l’entrata è in elenco con il segno +', (await pagina.textContent('.riga.entrata')).includes('+ 2.000,00 NZD'));
+  const totaleGiorno = await pagina.textContent('.titolo-sezione span:last-child');
+  controllo('il totale del giorno conta solo le spese', totaleGiorno === `${formato(spesoPrima)} €`, totaleGiorno);
+  await schermata(pagina, '13-spese-con-entrata');
 
   // ---- Tema scuro (solo schermate) ----
   if (CARTELLA_SCHERMATE) {
     await pagina.setViewportSize(SCHERMO);
     await pagina.emulateMedia({ colorScheme: 'dark' });
     await pagina.goto(`${indirizzo}#/spese`);
-    await pagina.waitForSelector('[data-spesa]');
+    await pagina.waitForSelector('[data-voce]');
     await schermata(pagina, '08-spese-scuro');
     await pagina.click('.barra-bassa [data-scheda="cambio"]');
     await pagina.waitForSelector('.riga-valuta');
