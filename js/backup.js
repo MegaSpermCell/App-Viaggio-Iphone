@@ -20,7 +20,7 @@ export async function preparaBackup() {
 }
 
 /**
- * Prepara il file CSV delle spese, da aprire con Numbers o Excel.
+ * Prepara il file CSV di spese ed entrate, da aprire con Numbers o Excel.
  * Usa il punto e virgola fra le colonne e la virgola nei decimali, come si
  * aspettano i fogli di calcolo impostati in italiano.
  */
@@ -29,11 +29,12 @@ export async function preparaCsv() {
   const nomeCategoria = new Map((await leggiCategorie()).map((categoria) => [categoria.id, categoria.nome]));
   const numero = (valore, decimali = 2) => valore.toFixed(decimali).replace('.', ',');
 
-  const righe = [['Data', 'Ora', 'Importo', 'Valuta', 'Cambio (per 1 EUR)', 'Importo in EUR', 'Categoria', 'Nota']];
+  const righe = [['Data', 'Ora', 'Tipo', 'Importo', 'Valuta', 'Cambio (per 1 EUR)', 'Importo in EUR', 'Categoria', 'Nota']];
   for (const spesa of spese) {
     righe.push([
       spesa.data.slice(0, 10),
       spesa.data.slice(11),
+      spesa.tipo === 'entrata' ? 'Entrata' : 'Spesa',
       numero(spesa.importo),
       spesa.valuta,
       numero(spesa.cambio, 4),

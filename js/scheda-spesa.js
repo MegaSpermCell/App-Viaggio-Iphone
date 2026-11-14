@@ -1,4 +1,8 @@
-// scheda-spesa.js – la scheda per aggiungere o modificare una spesa.
+// scheda-spesa.js – la scheda per aggiungere o modificare una spesa o un'entrata.
+//
+// Spese ed entrate stanno nello stesso archivio ("spese") e si distinguono dal
+// campo `tipo`: 'entrata' per i soldi ricevuti (stipendio, rimborsi…), mentre le
+// spese non hanno il campo o hanno 'spesa'. Un'entrata non ha categoria.
 //
 // Nuova spesa in pochi tocchi:
 //   1. si digita l'importo sul tastierino (la valuta proposta è l'ultima usata)
@@ -17,11 +21,12 @@ import { esc, nuovoId, leggiNumero, numeroInTesto, formattaImporto, adessoLocale
 
 /**
  * Apre la scheda.
- *   spesa            la spesa da modificare; se manca se ne crea una nuova
+ *   spesa            la spesa (o entrata) da modificare; se manca se ne crea una nuova
+ *   tipo             'spesa' oppure 'entrata', per una voce nuova
  *   importo, valuta  valori già pronti per una spesa nuova (li passa il convertitore)
  * Restituisce una Promise: la spesa salvata, 'eliminata', oppure null se si è annullato.
  */
-export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = null } = {}) {
+export async function apriSchedaSpesa({ spesa = null, tipo = 'spesa', importo = '', valuta = null } = {}) {
   const [valute, categorie, cambi, ultimaValuta] = await Promise.all([
     leggiValute(),
     leggiCategorie(),
@@ -29,6 +34,7 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
     leggiImpostazione('ultimaValuta', VALUTA_BASE),
   ]);
   const inModifica = spesa !== null;
+  const eEntrata = (spesa?.tipo ?? tipo) === 'entrata';
 
   // Lo "stato" raccoglie ciò che l'utente sta scegliendo nella scheda.
   const stato = {
@@ -74,7 +80,8 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
   }
 
   // La riga di testo sopra le categorie: di norma un suggerimento, in rosso se manca qualcosa.
-  const SUGGERIMENTO = inModifica ? 'Categoria' : 'Tocca una categoria per salvare';
+  let SUGGERIMENTO = inModifica ? 'Categoria' : 'Tocca una categoria per salvare';
+  if (eEntrata) SUGGERIMENTO = 'Soldi ricevuti: si aggiungono a quanto hai a disposizione';
 
   function togliSegnalazione() {
     const suggerimento = trova('#suggerimento');
@@ -102,7 +109,7 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
     let errore = null;
     if (numero <= 0) errore = 'Scrivi prima l’importo';
     else if (!cambio) errore = `Manca il cambio di ${stato.valuta}`;
-    else if (!stato.categoriaId) errore = 'Scegli una categoria';
+    else if (!eEntrata && !stato.categoriaId) errore = 'Scegli una categoria';
     if (errore) {
       segnala(errore);
       return null;
@@ -110,11 +117,12 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
 
     const daSalvare = {
       id: spesa?.id ?? nuovoId(),
+      tipo: eEntrata ? 'entrata' : 'spesa',
       importo: numero,
       valuta: stato.valuta,
       cambio,                       // unità di valuta per 1 €, al momento della spesa
       importoEur: numero / cambio,  // salvato: così i totali non cambiano quando cambia il tasso
-      categoriaId: stato.categoriaId,
+      categoriaId: eEntrata ? null : stato.categoriaId,
       nota: trova('[name="nota"]').value.trim(),
       data: trova('[name="data"]')?.value || spesa?.data || adessoLocale(),
       creata: spesa?.creata ?? Date.now(),
@@ -132,7 +140,7 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
     <div class="pillole" role="group" aria-label="Valuta">
       ${valuteMostrate.map((codice) => `<button type="button" data-valuta="${esc(codice)}">${esc(codice)}</button>`).join('')}
     </div>
-    <input class="campo" type="text" name="nota" placeholder="Nota (facoltativa)" aria-label="Nota"
+    <input class="campo" type="text" name="nota" placeholder="${eEntrata ? 'Nota (es. Stipendio di novembre)' : 'Nota (facoltativa)'}" aria-label="Nota"
       autocomplete="off" value="${esc(spesa?.nota)}">
     ${inModifica ? `
       <label class="campo-etichetta">Data e ora
@@ -140,16 +148,18 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
       </label>` : ''}
     <div id="posto-tastierino"></div>
     <p class="suggerimento" id="suggerimento">${SUGGERIMENTO}</p>
-    <div class="griglia-categorie">
-      ${categorie.map((categoria) => `
-        <button type="button" data-categoria="${esc(categoria.id)}">
-          <span class="emoji">${esc(categoria.emoji)}</span>${esc(categoria.nome)}
-        </button>`).join('')}
-    </div>
-    ${inModifica ? '<button type="button" class="tasto pericolo largo" data-azione="elimina">Elimina spesa</button>' : ''}`;
+    ${eEntrata ? '' : `
+      <div class="griglia-categorie">
+        ${categorie.map((categoria) => `
+          <button type="button" data-categoria="${esc(categoria.id)}">
+            <span class="emoji">${esc(categoria.emoji)}</span>${esc(categoria.nome)}
+          </button>`).join('')}
+      </div>`}
+    ${eEntrata && !inModifica ? '<button type="button" class="tasto largo" data-azione="aggiungi-entrata">Aggiungi al budget</button>' : ''}
+    ${inModifica ? `<button type="button" class="tasto pericolo largo" data-azione="elimina">Elimina ${eEntrata ? 'entrata' : 'spesa'}</button>` : ''}`;
 
   return apriScheda({
-    titolo: inModifica ? 'Modifica spesa' : 'Nuova spesa',
+    titolo: `${inModifica ? 'Modifica' : 'Nuova'} ${eEntrata ? 'entrata' : 'spesa'}`,
     corpo,
     testoSalva: inModifica ? 'Salva' : null,
 
@@ -192,8 +202,14 @@ export async function apriSchedaSpesa({ spesa = null, importo = '', valuta = nul
         });
       }
 
+      // Entrata nuova: non ci sono categorie da toccare, si salva con questo tasto.
+      trova('[data-azione="aggiungi-entrata"]')?.addEventListener('click', async () => {
+        const salvata = await salvaSpesa();
+        if (salvata) chiudi(salvata);
+      });
+
       trova('[data-azione="elimina"]')?.addEventListener('click', async () => {
-        if (!confirm('Eliminare questa spesa?')) return;
+        if (!confirm(`Eliminare questa ${eEntrata ? 'entrata' : 'spesa'}?`)) return;
         await elimina('spese', spesa.id);
         chiudi('eliminata');
       });
