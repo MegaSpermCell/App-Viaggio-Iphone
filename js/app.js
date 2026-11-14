@@ -68,9 +68,15 @@ async function mostraVista() {
   contenitore.dataset.vista = nome; // serve anche al CSS
 
   try {
-    // La vista può restituire un titolo suo (il giorno restituisce la data).
-    const titoloVista = await rotta.vista.mostra(contenitore, parametro);
-    titolo.textContent = titoloVista ?? rotta.titolo;
+    // La vista può restituire un titolo suo (un testo) oppure { titolo, indietro }
+    // per decidere anche dove porta la freccia "indietro".
+    const esito = await rotta.vista.mostra(contenitore, parametro);
+    const scelte = typeof esito === 'string' ? { titolo: esito } : esito ?? {};
+    titolo.textContent = scelte.titolo ?? rotta.titolo;
+    if (scelte.indietro) {
+      frecciaIndietro.hidden = false;
+      frecciaIndietro.href = scelte.indietro;
+    }
   } catch (errore) {
     console.error(errore);
     contenitore.innerHTML = '<p class="vuoto">Qualcosa è andato storto.<br>Chiudi e riapri l’app.</p>';

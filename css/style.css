@@ -538,3 +538,19 @@ dialog.scheda[open] { animation: sale .2s ease-out; }
 /* Link che hanno l'aspetto di un tasto di solo testo */
 a.tasto-testo { flex: none; display: inline-flex; align-items: center; text-decoration: none; }
 .leaflet-popup-content a { color: #7b2242; }
+
+/* Tappe di un'attività */
+.riga-tappa { display: flex; align-items: center; }
+.riga-tappa .riga { flex: 1; min-width: 0; min-height: 54px; }
+.numero-tappa {
+  flex: none; display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accento-tenue); color: var(--accento);
+  font-size: .85rem; font-weight: 700;
+}
+.campo-etichetta > .lista, .campo-etichetta > .pillole { color: var(--testo); font-weight: 400; font-size: 1rem; }
+
+/* Cartelle dell'itinerario */
+.simbolo-cartella { justify-content: center; height: 56px; font-size: 1.7rem; }
+.pillole.a-capo { flex-wrap: wrap; }
+.pillole.a-capo button { flex: none; padding: 0 14px; }
