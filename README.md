@@ -11,7 +11,7 @@ App personale per il viaggio (vendemmia in Nuova Zelanda, con soste a Istanbul e
 - **Spese** – tocchi `+`, scrivi l'importo, tocchi la categoria: salvata. La valuta proposta è l'ultima usata, data e ora sono automatiche. Ogni spesa viene convertita in euro con il cambio di quel momento.
 - **Entrate** – con `＋ Entrata` aggiungi i soldi ricevuti (per esempio lo stipendio). In alto vedi quanto ti resta: entrate meno spese.
 - **Cambio** – scrivi un importo in una valuta e lo vedi in tutte le altre. Tocca un'altra riga per scrivere in quella valuta. Funziona offline con gli ultimi cambi scaricati.
-- **Itinerario** – giorni con titolo e note, raccolti se vuoi in **cartelle** (es. «Istanbul»): basta scrivere il nome della cartella nella scheda del giorno. Ogni giorno ha una scaletta di attività con orario, luogo, note e fatto/da fare.
+- **Itinerario** – giorni con titolo e note, raccolti se vuoi in **cartelle** (es. «Istanbul»). Si fanno come con le app sull'iPhone: tieni premuto un giorno e trascinalo sopra un altro giorno (nasce la cartella) o sopra una cartella (ci entra). In alternativa scrivi il nome della cartella nella scheda del giorno. Ogni giorno ha una scaletta di attività con orario, luogo, note e fatto/da fare.
 - **Luoghi e percorsi** – il luogo di un'attività si trova cercandone il nome, toccando la mappa o incollando coordinate o un link di Google Maps. Un'attività può avere **più tappe** (passeggiate, giri): il tasto «Percorso» apre Apple Maps o Google Maps con tutte le tappe in ordine.
 - **Mappa** – tutti i luoghi dell'itinerario, numerati e uniti da una linea, con un colore per giorno. Si può guardare un giorno solo.
 - **Impostazioni** – valute e cambi (anche scritti a mano), categorie, backup, aggiornamenti.
@@ -93,6 +93,7 @@ js/
   cambi.js              download dei cambi e conversioni
   util.js               funzioni di aiuto: numeri, date, messaggi
   tastierino.js         il tastierino numerico
+  trascina.js           trascinare un giorno su un altro con il dito
   scheda.js             le finestre a tutto schermo per inserire e modificare
   scheda-spesa.js       la scheda di spese ed entrate
   scheda-luogo.js       la scheda per mettere un luogo sulla mappa

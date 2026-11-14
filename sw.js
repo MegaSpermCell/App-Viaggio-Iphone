@@ -9,7 +9,7 @@
 // │  2. se aggiungi un file all'app, aggiungilo anche all'elenco FILE.        │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-const VERSIONE = 'v3';
+const VERSIONE = 'v4';
 const CACHE = `viaggio-${VERSIONE}`;
 
 // Tutti i file che servono per funzionare offline.
@@ -31,6 +31,7 @@ const FILE = [
   'js/scheda-luogo.js',
   'js/scheda-spesa.js',
   'js/tastierino.js',
+  'js/trascina.js',
   'js/util.js',
   'js/viste/cambio.js',
   'js/viste/giorno.js',

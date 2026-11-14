@@ -203,7 +203,8 @@ async function provaNelBrowser(indirizzo) {
     if (messaggio.type() === 'error') errori.push(messaggio.text());
   });
   pagina.on('pageerror', (errore) => errori.push(String(errore)));
-  pagina.on('dialog', (finestra) => finestra.accept()); // risponde "OK" ai confirm()
+  // Risponde "OK" ai confirm(); ai prompt() che chiedono un nome risponde con un nome.
+  pagina.on('dialog', (finestra) => finestra.accept(finestra.type() === 'prompt' ? (finestra.defaultValue() || 'Turchia') : undefined));
 
   // ---- Avvio e service worker ----
   titolo('Avvio e service worker');
@@ -587,6 +588,37 @@ async function provaNelBrowser(indirizzo) {
   await pagina.waitForSelector('.cartella-carta');
   controllo('elenco principale: una cartella e un giorno sciolto', (await pagina.locator('.cartella-carta').count()) === 1 && (await pagina.locator('.giorno-carta').count()) === 2 && (await pagina.textContent('.cartella-carta')).includes('1 giorno'));
   await schermata(pagina, '15-itinerario-cartelle');
+
+  // ---- Cartelle fatte trascinando ----
+  titolo('Cartelle con il trascinamento');
+  // Tiene premuto il centro di `da`, lo porta sul centro di `a` e rilascia.
+  async function trascina(da, a) {
+    const partenza = await pagina.locator(da).boundingBox();
+    const arrivo = await pagina.locator(a).boundingBox();
+    await pagina.mouse.move(partenza.x + partenza.width / 2, partenza.y + partenza.height / 2);
+    await pagina.mouse.down();
+    await pagina.waitForTimeout(450);
+    await pagina.mouse.move(arrivo.x + arrivo.width / 2, arrivo.y + arrivo.height / 2, { steps: 8 });
+    await pagina.mouse.up();
+  }
+  await trascina('[data-giorno]', '[data-cartella="Bangkok"]');
+  await pagina.waitForFunction(() => document.querySelector('.cartella-carta')?.textContent.includes('2 giorni'));
+  controllo('giorno trascinato su una cartella: ci entra', (await pagina.locator('#elenco-giorni [data-giorno]').count()) === 0 && (await pagina.textContent('#titolo')) === 'Itinerario');
+  await pagina.click('.cartella-carta');
+  await pagina.waitForSelector('#fuori-cartella');
+  await trascina('[data-giorno] >> nth=0', '#fuori-cartella');
+  await pagina.waitForFunction(() => document.querySelectorAll('[data-giorno]').length === 1);
+  await trascina('[data-giorno]', '#fuori-cartella');
+  await pagina.waitForFunction(() => document.querySelector('#titolo').textContent === 'Itinerario' && document.querySelectorAll('[data-giorno]').length === 2);
+  controllo('giorni trascinati fuori: la cartella vuota sparisce', (await pagina.locator('.cartella-carta').count()) === 0);
+  await trascina('[data-giorno] >> nth=1', '[data-giorno] >> nth=0');
+  await pagina.waitForSelector('[data-cartella="Turchia"]');
+  controllo('giorno trascinato su un altro giorno: nasce una cartella con entrambi', (await pagina.textContent('.cartella-carta')).includes('2 giorni') && (await leggiDalDb(pagina, 'giorni')).every((giorno) => giorno.cartella === 'Turchia'));
+  await pagina.click('.cartella-carta'); // un tocco normale, senza tenere premuto, apre la cartella
+  await pagina.waitForSelector('#fuori-cartella');
+  controllo('un tocco normale apre ancora la cartella', (await pagina.textContent('#titolo')) === 'Turchia');
+  await schermata(pagina, '16-dentro-cartella');
+
   await pagina.click('.barra-bassa [data-scheda="mappa"]');
   await pagina.waitForFunction(() => document.querySelectorAll('.segnaposto').length === 3);
   controllo('mappa: la tappa con coordinate compare, le altre sono «da trovare»', (await pagina.textContent('.avviso')).includes('2 luoghi'));

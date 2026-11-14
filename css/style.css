@@ -554,3 +554,22 @@ a.tasto-testo { flex: none; display: inline-flex; align-items: center; text-deco
 .simbolo-cartella { justify-content: center; height: 56px; font-size: 1.7rem; }
 .pillole.a-capo { flex-wrap: wrap; }
 .pillole.a-capo button { flex: none; padding: 0 14px; }
+
+/* Trascinamento dei giorni (vedi js/trascina.js) */
+.giorno-carta { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; transition: transform .12s, border-color .12s, opacity .12s; }
+.giorno-carta.in-trascinamento { opacity: .25; }                 /* il posto lasciato vuoto */
+.giorno-carta.bersaglio { border-color: var(--accento); transform: scale(1.03); background: var(--accento-tenue); }
+.copia-trascinata {
+  position: fixed; z-index: 1500; margin: 0;
+  pointer-events: none;                 /* il dito "vede" ciò che sta sotto la copia */
+  transform: scale(1.04) rotate(-1.5deg);
+  box-shadow: 0 12px 28px rgb(0 0 0 / .3);
+  opacity: .95;
+}
+.zona-rilascio {
+  margin: 0 0 10px; padding: 14px;
+  border: 2px dashed var(--bordo); border-radius: var(--raggio);
+  color: var(--testo-tenue); font-size: .88rem; text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.zona-rilascio.bersaglio { border-color: var(--accento); background: var(--accento-tenue); color: var(--accento); }
