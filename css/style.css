@@ -27,7 +27,8 @@
   --ok: #2c7a4b;
   --pericolo: #b3261e;
 
-  --raggio: 14px;
+  --ombra: 0 1px 2px rgb(60 30 40 / .06), 0 2px 8px rgb(60 30 40 / .05);
+  --raggio: 16px;
   --barra-bassa: 58px;        /* altezza della barra di navigazione */
 
   /* "Safe area": i margini che l'iPhone riserva a tacca e barra Home.
@@ -54,6 +55,7 @@
     --barra-testo: #f3ecee;
     --ok: #7fcf9c;
     --pericolo: #ff8a80;
+    --ombra: none;
   }
 }
 
@@ -61,12 +63,17 @@
 
 * { box-sizing: border-box; }
 
-html, body { height: 100%; margin: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; }
+html { height: 100%; -webkit-text-size-adjust: 100%; }
 
 /* La pagina non scorre mai tutta insieme: restano ferme le due barre e scorre
-   solo la parte centrale (#vista). È il comportamento tipico di un'app. */
+   solo la parte centrale (#vista). È il comportamento tipico di un'app.
+   "position: fixed; inset: 0" aggancia la pagina ai quattro bordi dello schermo:
+   ruotando il telefono si adatta subito, senza altezze da ricalcolare (un'altezza
+   in "dvh" su iPhone faceva tremare la barra in basso dopo la rotazione). */
 body {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -77,7 +84,6 @@ body {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;           /* niente zoom con il doppio tocco */
 }
-@supports (height: 100dvh) { body { height: 100dvh; } }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 a { -webkit-touch-callout: none; }  /* niente anteprima di iOS tenendo premuto un link */
@@ -143,9 +149,14 @@ h2, p { margin: 0; }
   font-size: .72rem; font-weight: 600;
   -webkit-touch-callout: none;
 }
+.barra-bassa a { font-size: .68rem; }
 .barra-bassa a[aria-current="page"] { color: var(--accento); }
+/* La schermata attiva ha l'icona dentro una "pillola" colorata */
+.barra-bassa a[aria-current="page"] svg { background: var(--accento-tenue); }
 .barra-bassa svg {
-  width: 26px; height: 26px;
+  box-sizing: content-box;
+  padding: 3px 14px; border-radius: 999px;
+  width: 24px; height: 24px;
   fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
 
@@ -155,7 +166,7 @@ h2, p { margin: 0; }
   position: fixed;
   top: calc(var(--sicura-alto) + 5px);
   left: 50%;
-  z-index: 10;
+  z-index: 2000;            /* sopra a tutto, anche alla mappa */
   width: max-content;
   max-width: calc(100% - 24px);
   padding: 10px 18px;
@@ -193,7 +204,11 @@ h2, p { margin: 0; }
   border: 0; background: none;
   color: var(--accento); font-weight: 650;
 }
-.tasto:active, .tasto-testo:active, .tasto-fluttuante:active, .tasto-naviga:active { opacity: .65; }
+/* Risposta al tocco: il tasto si rimpicciolisce appena e si schiarisce */
+.tasto, .tasto-fluttuante, .tasto-chiaro, .tastierino button, .griglia-categorie button, .pillole button { transition: transform .08s, opacity .08s; }
+.tasto:active, .tasto-fluttuante:active, .tasto-chiaro:active, .tastierino button:active, .griglia-categorie button:active { transform: scale(.96); }
+.tasto:active, .tasto-testo:active, .tasto-fluttuante:active, .tasto-naviga:active, .tasto-chiaro:active { opacity: .7; }
+.tasto:disabled { opacity: .5; }
 
 /* Tasto rotondo "+" sempre a portata di pollice */
 .tasto-fluttuante {
@@ -215,8 +230,8 @@ h2, p { margin: 0; }
 .colonna { display: flex; flex-direction: column; gap: 10px; }
 
 /* Schede e liste */
-.carta { background: var(--superficie); border-radius: var(--raggio); padding: 14px 16px; }
-.lista { list-style: none; margin: 0; padding: 0; background: var(--superficie); border-radius: var(--raggio); overflow: hidden; }
+.carta { background: var(--superficie); border-radius: var(--raggio); padding: 14px 16px; box-shadow: var(--ombra); }
+.lista { list-style: none; margin: 0; padding: 0; background: var(--superficie); border-radius: var(--raggio); overflow: hidden; box-shadow: var(--ombra); }
 .lista > li + li { border-top: 1px solid var(--bordo); }
 
 .riga {
@@ -249,6 +264,13 @@ button.riga:active { background: var(--superficie-2); }
 .etichetta { color: var(--testo-tenue); font-size: .82rem; font-weight: 600; }
 .nota { margin: 8px 4px 0; color: var(--testo-tenue); font-size: .88rem; }
 .vuoto { margin: 40px 16px; color: var(--testo-tenue); text-align: center; }
+.vuoto a { color: var(--accento); font-weight: 650; }
+.vuoto-simbolo { display: block; margin-bottom: 10px; font-size: 3rem; }
+.riga-testo.a-capo > * { white-space: normal; }
+
+/* Cambiando schermata il contenuto compare con una breve dissolvenza */
+#vista.entra { animation: compare .18s ease-out; }
+@keyframes compare { from { opacity: 0; } }
 
 /* Campi dei moduli. I 17px evitano che iOS ingrandisca la pagina quando si scrive. */
 .campo-etichetta { display: flex; flex-direction: column; gap: 6px; color: var(--testo-tenue); font-size: .88rem; font-weight: 600; }
@@ -336,8 +358,30 @@ dialog.scheda[open] { animation: sale .2s ease-out; }
 /* Spese: spazio in fondo, così l'ultima riga non resta sotto il tasto "+" */
 #vista[data-vista="spese"] { padding-bottom: 110px; }
 
+/* Riquadro in evidenza: quanto resta da spendere */
+.evidenza {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 10px; padding: 16px;
+  border-radius: var(--raggio);
+  background: linear-gradient(135deg, #93294f, #5a1730);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(90 23 48 / .25);
+}
+.evidenza-testo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.evidenza .etichetta { color: rgb(255 255 255 / .8); }
+.evidenza strong { font-size: 2.1rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.evidenza small { margin-top: 2px; color: rgb(255 255 255 / .8); font-size: .8rem; }
+.evidenza .in-rosso { color: #ffc9c4; }
+.tasto-chiaro {
+  flex: none; min-height: 46px; padding: 0 14px;
+  border: 0; border-radius: 999px;
+  background: rgb(255 255 255 / .18); color: #fff;
+  font-weight: 650; font-size: .92rem;
+}
+.riga.entrata .riga-importo strong { color: var(--ok); }
+
 .riepilogo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.riepilogo strong { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.riepilogo strong { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 
 .avviso {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -444,3 +488,53 @@ dialog.scheda[open] { animation: sale .2s ease-out; }
   background: var(--accento-tenue); color: var(--accento);
   font-size: .88rem; font-weight: 650; text-decoration: none;
 }
+
+/* Mappa */
+.mappa {
+  flex: 1; min-height: 260px;
+  border-radius: var(--raggio);
+  background: var(--superficie-2);
+  isolation: isolate;                 /* i livelli interni della mappa non coprono il resto dell'app */
+  font: inherit;
+}
+#vista[data-vista="mappa"] { display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: 10px 0 0; }
+#vista[data-vista="mappa"] .mappa { border-radius: 0; }
+#vista[data-vista="mappa"] .avviso { margin: 0 max(16px, var(--sicura-dx)) 0 max(16px, var(--sicura-sx)); }
+
+/* Scelta del giorno: una fila di etichette che scorre in orizzontale */
+.filtro-giorni {
+  flex: none;
+  display: flex; gap: 8px;
+  overflow-x: auto; scrollbar-width: none;
+  padding: 0 max(16px, var(--sicura-dx)) 0 max(16px, var(--sicura-sx));
+}
+.filtro-giorni::-webkit-scrollbar { display: none; }
+.filtro-giorni a {
+  flex: none;
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 16px;
+  border: 1.5px solid var(--bordo); border-radius: 999px;
+  background: var(--superficie); color: var(--testo);
+  font-weight: 650; font-size: .92rem; text-decoration: none; white-space: nowrap;
+}
+.filtro-giorni a[aria-current="true"] { background: var(--accento); border-color: var(--accento); color: var(--accento-testo); }
+
+/* Segnaposto numerato */
+.segnaposto span {
+  display: grid; place-items: center;
+  width: 32px; height: 32px;
+  border: 2.5px solid #fff; border-radius: 50%;
+  color: #fff; font: 700 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 2px 6px rgb(0 0 0 / .4);
+}
+.leaflet-popup-content { margin: 12px 14px; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.popup-naviga { display: inline-block; padding: 8px 0 2px; font-weight: 700; }
+
+/* Scheda "posizione del luogo" */
+.cerca-luogo { display: flex; gap: 8px; }
+.cerca-luogo .campo { flex: 1; min-width: 0; }
+.cerca-luogo .tasto { min-height: 50px; }
+
+/* Link che hanno l'aspetto di un tasto di solo testo */
+a.tasto-testo { flex: none; display: inline-flex; align-items: center; text-decoration: none; }
+.leaflet-popup-content a { color: #7b2242; }
