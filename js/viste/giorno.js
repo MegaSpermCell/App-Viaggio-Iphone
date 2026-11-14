@@ -7,21 +7,14 @@
 
 import { leggi, salva, elimina, leggiImpostazione } from '../db.js';
 import { apriScheda, segnalaCampo } from '../scheda.js';
+import { apriSchedaLuogo } from '../scheda-luogo.js';
 import { analizzaScaletta } from '../scaletta.js';
+import { linkNaviga } from '../luoghi.js';
 import { esc, nuovoId, oggi, formattaGiorno, toast } from '../util.js';
 
 /** Attività in ordine di orario; quelle senza orario restano in fondo. */
-function inOrdine(attivita) {
+export function inOrdine(attivita) {
   return [...attivita].sort((a, b) => (a.ora || '99:99').localeCompare(b.ora || '99:99'));
-}
-
-/** Indirizzo che apre il navigatore verso un luogo. */
-function linkNaviga(luogo, mappe) {
-  // Con le coordinate la destinazione è precisa; altrimenti si cerca per nome.
-  const destinazione = encodeURIComponent(luogo.lat != null ? `${luogo.lat},${luogo.lon}` : luogo.nome);
-  return mappe === 'google'
-    ? `https://www.google.com/maps/dir/?api=1&destination=${destinazione}`
-    : `https://maps.apple.com/?daddr=${destinazione}`;
 }
 
 export async function mostra(main, id) {
@@ -70,7 +63,10 @@ export async function mostra(main, id) {
     <div class="azioni">
       <button class="tasto" id="nuova-attivita">＋ Attività</button>
       <button class="tasto secondario" id="incolla-scaletta">Incolla scaletta</button>
-    </div>`;
+    </div>
+    ${attivita.some((voce) => voce.luogo)
+      ? `<div class="azioni"><a class="tasto secondario" href="#/mappa/${esc(giorno.id)}">🗺️ Mappa del giorno</a></div>`
+      : ''}`;
 
   main.querySelector('#modifica-giorno').addEventListener('click', async () => {
     const esito = await apriSchedaGiorno(giorno);
@@ -153,6 +149,10 @@ export function apriSchedaGiorno(giorno = null, dataProposta = oggi()) {
 
 /** Scheda per creare o modificare un'attività del giorno. */
 function apriSchedaAttivita(giorno, voce = null) {
+  // La posizione sulla mappa scelta dentro questa scheda (se l'utente ne sceglie una).
+  let posizioneScelta = null;
+  const testoTastoPosizione = (luogo) => (luogo?.lat != null ? '📍 Posizione impostata · cambia' : '📍 Scegli la posizione sulla mappa');
+
   return apriScheda({
     titolo: voce ? 'Modifica attività' : 'Nuova attività',
     corpo: `
@@ -165,12 +165,29 @@ function apriSchedaAttivita(giorno, voce = null) {
       <label class="campo-etichetta">Luogo (facoltativo)
         <input class="campo" type="text" name="luogo" autocomplete="off" placeholder="Nome o indirizzo" value="${esc(voce?.luogo?.nome)}">
       </label>
+      <button type="button" class="tasto secondario largo" data-azione="posizione">${testoTastoPosizione(voce?.luogo)}</button>
       <label class="campo-etichetta">Note
         <textarea class="campo" name="note">${esc(voce?.note)}</textarea>
       </label>
       ${voce ? '<button type="button" class="tasto pericolo largo" data-azione="elimina">Elimina attività</button>' : ''}`,
 
     prepara(dialog, chiudi) {
+      // Apre la scheda con la mappa; al ritorno ricorda la posizione e aggiorna il nome.
+      const tastoPosizione = dialog.querySelector('[data-azione="posizione"]');
+      tastoPosizione.addEventListener('click', async () => {
+        const campoLuogo = dialog.querySelector('[name="luogo"]');
+        const partenza = posizioneScelta ?? voce?.luogo ?? null;
+        const scelto = await apriSchedaLuogo({
+          nome: campoLuogo.value.trim(),
+          lat: partenza?.lat ?? null,
+          lon: partenza?.lon ?? null,
+        });
+        if (!scelto) return;
+        posizioneScelta = scelto;
+        campoLuogo.value = scelto.nome;
+        tastoPosizione.textContent = testoTastoPosizione(scelto);
+      });
+
       dialog.querySelector('[data-azione="elimina"]')?.addEventListener('click', async () => {
         if (!confirm('Eliminare questa attività?')) return;
         giorno.attivita = giorno.attivita.filter((candidata) => candidata.id !== voce.id);
@@ -181,9 +198,14 @@ function apriSchedaAttivita(giorno, voce = null) {
 
     async alSalvataggio(campi) {
       const nomeLuogo = campi.luogo.trim();
-      // Se il nome del luogo non cambia tengo quello salvato, con le sue eventuali coordinate.
+      // Quali coordinate tenere:
+      //  - quelle scelte ora sulla mappa, se ce ne sono;
+      //  - altrimenti quelle già salvate, ma solo se il nome non è cambiato
+      //    (se scrivo un altro posto, le vecchie coordinate sarebbero sbagliate).
       let luogo = null;
-      if (nomeLuogo) {
+      if (posizioneScelta) {
+        luogo = { ...posizioneScelta, nome: nomeLuogo || posizioneScelta.nome };
+      } else if (nomeLuogo) {
         luogo = voce?.luogo?.nome === nomeLuogo ? voce.luogo : { nome: nomeLuogo, lat: null, lon: null };
       }
 
