@@ -131,7 +131,13 @@ async function controllaFunzioniPure() {
   controllo('tastierino: "05" diventa "5", "," da solo diventa "0,"', digita('05') === '5' && digita(',') === '0,');
   controllo('tastierino: ⌫ cancella l’ultimo carattere', digita('12⌫') === '1');
 
-  const { leggiCoordinate, eLinkBreve } = await carica('js/luoghi.js');
+  const { leggiCoordinate, eLinkBreve, linkNaviga } = await carica('js/luoghi.js');
+  const giro = analizzaScaletta('16:00 Giro @ Wat Pho > Wat Arun → Grand Palace')[0];
+  controllo('scaletta: «A > B > C» diventa un luogo più due tappe', giro.luogo.nome === 'Wat Pho' && giro.tappe.map((tappa) => tappa.nome).join() === 'Wat Arun,Grand Palace');
+  const passeggiata = { luogo: { nome: 'A', lat: 1.5, lon: 2.5 }, tappe: [{ nome: 'B b', lat: null, lon: null }, { nome: 'C', lat: 3.5, lon: 4.5 }] };
+  controllo('percorso a tappe su Google Maps', linkNaviga(passeggiata, 'google') === 'https://www.google.com/maps/dir/?api=1&destination=3.5%2C4.5&waypoints=1.5%2C2.5%7CB%20b&travelmode=walking', linkNaviga(passeggiata, 'google'));
+  controllo('percorso a tappe su Apple Maps', linkNaviga(passeggiata, 'apple') === 'https://maps.apple.com/directions?destination=3.5%2C4.5&waypoint=1.5%2C2.5&waypoint=B%20b&mode=walking', linkNaviga(passeggiata, 'apple'));
+  controllo('percorso in auto e attività senza luoghi', linkNaviga({ ...passeggiata, mezzo: 'auto' }, 'google').endsWith('travelmode=driving') && linkNaviga({ luogo: null }, 'apple') === null);
   const coordinate = (testo) => { const c = leggiCoordinate(testo); return c ? `${c.lat},${c.lon}` : null; };
   controllo('coordinate incollate: "41.0086, 28.9802"', coordinate('41.0086, 28.9802') === '41.0086,28.9802');
   controllo('coordinate con segno meno (Nuova Zelanda)', coordinate('-41.5134 173.9612') === '-41.5134,173.9612');
@@ -528,6 +534,54 @@ async function provaNelBrowser(indirizzo) {
   const totaleGiorno = await pagina.textContent('.titolo-sezione span:last-child');
   controllo('il totale del giorno conta solo le spese', totaleGiorno === `${formato(spesoPrima)} €`, totaleGiorno);
   await schermata(pagina, '13-spese-con-entrata');
+
+  // ---- Cartelle e attività a tappe ----
+  titolo('Cartelle e attività con più tappe');
+  await pagina.click('.barra-bassa [data-scheda="itinerario"]');
+  await pagina.click('#nuovo-giorno');
+  await pagina.fill('dialog[open] [name="data"]', '2026-11-25');
+  await pagina.fill('dialog[open] [name="titolo"]', 'Templi e fiume');
+  await pagina.fill('dialog[open] [name="cartella"]', 'Bangkok');
+  await pagina.click('dialog[open] button[type="submit"]');
+  await pagina.waitForSelector('#nuova-attivita');
+  controllo('dal giorno la freccia riporta alla sua cartella', (await pagina.getAttribute('#indietro', 'href')) === '#/itinerario/Bangkok');
+
+  await pagina.click('#incolla-scaletta');
+  await pagina.fill('dialog[open] [name="testo"]', '16:00 Giro dei templi @ Wat Pho Bangkok > Wat Arun Bangkok');
+  await pagina.click('dialog[open] button[type="submit"]');
+  await pagina.waitForSelector('.attivita');
+  controllo('la scaletta mostra le tappe in fila', (await pagina.textContent('.attivita')).includes('Wat Pho Bangkok → Wat Arun Bangkok'));
+  controllo('il tasto diventa «Percorso» e apre Google Maps con le tappe', (await pagina.textContent('.tasto-naviga')) === 'Percorso'
+    && (await pagina.getAttribute('.tasto-naviga', 'href')) === 'https://www.google.com/maps/dir/?api=1&destination=Wat%20Arun%20Bangkok&waypoints=Wat%20Pho%20Bangkok&travelmode=walking', await pagina.getAttribute('.tasto-naviga', 'href'));
+
+  await pagina.click('.attivita-testo');
+  await pagina.waitForSelector('dialog[open] [data-tappa]');
+  await pagina.click('dialog[open] [data-azione="aggiungi-tappa"]');
+  await pagina.waitForSelector('#mappa-luogo.leaflet-container');
+  await pagina.fill('[name="ricerca"]', '13.7500, 100.4913');
+  await pagina.click('[data-azione="cerca"]');
+  await pagina.waitForFunction(() => document.querySelector('#messaggio-luogo')?.textContent.includes('Posizione letta'));
+  await pagina.fill('[name="ricerca"]', 'Grand Palace');
+  await pagina.click('dialog:has(#mappa-luogo) button[type="submit"]');
+  await pagina.waitForSelector('#mappa-luogo', { state: 'detached' });
+  controllo('tappa aggiunta incollando le coordinate', (await pagina.locator('dialog[open] [data-tappa]').count()) === 2 && (await pagina.textContent('#elenco-tappe')).includes('Grand Palace'));
+  await pagina.click('dialog[open] [data-mezzo="auto"]');
+  await schermata(pagina, '14-attivita-con-tappe');
+  await pagina.click('dialog[open] button[type="submit"]');
+  await pagina.waitForSelector('dialog[open]', { state: 'detached' });
+  const percorso = await pagina.getAttribute('.tasto-naviga', 'href');
+  controllo('percorso con tre tappe, in auto', percorso === 'https://www.google.com/maps/dir/?api=1&destination=13.75%2C100.4913&waypoints=Wat%20Pho%20Bangkok%7CWat%20Arun%20Bangkok&travelmode=driving', percorso);
+
+  await pagina.click('#indietro');
+  await pagina.waitForFunction(() => document.querySelector('#titolo').textContent === 'Bangkok');
+  controllo('dentro la cartella c’è il suo giorno', (await pagina.locator('.giorno-carta').count()) === 1 && (await pagina.textContent('.giorno-carta')).includes('Templi e fiume'));
+  await pagina.click('#indietro');
+  await pagina.waitForSelector('.cartella-carta');
+  controllo('elenco principale: una cartella e un giorno sciolto', (await pagina.locator('.cartella-carta').count()) === 1 && (await pagina.locator('.giorno-carta').count()) === 2 && (await pagina.textContent('.cartella-carta')).includes('1 giorno'));
+  await schermata(pagina, '15-itinerario-cartelle');
+  await pagina.click('.barra-bassa [data-scheda="mappa"]');
+  await pagina.waitForFunction(() => document.querySelectorAll('.segnaposto').length === 3);
+  controllo('mappa: la tappa con coordinate compare, le altre sono «da trovare»', (await pagina.textContent('.avviso')).includes('2 luoghi'));
 
   // ---- Tema scuro (solo schermate) ----
   if (CARTELLA_SCHERMATE) {

@@ -9,9 +9,20 @@ App personale per il viaggio (vendemmia in Nuova Zelanda, con soste a Istanbul e
 ## Cosa fa
 
 - **Spese** – tocchi `+`, scrivi l'importo, tocchi la categoria: salvata. La valuta proposta è l'ultima usata, data e ora sono automatiche. Ogni spesa viene convertita in euro con il cambio di quel momento.
+- **Entrate** – con `＋ Entrata` aggiungi i soldi ricevuti (per esempio lo stipendio). In alto vedi quanto ti resta: entrate meno spese.
 - **Cambio** – scrivi un importo in una valuta e lo vedi in tutte le altre. Tocca un'altra riga per scrivere in quella valuta. Funziona offline con gli ultimi cambi scaricati.
-- **Itinerario** – giorni con titolo e note; ogni giorno ha una scaletta di attività (orario, luogo, note, fatto/da fare), il tasto «Naviga» e l'importazione da un testo incollato.
+- **Itinerario** – giorni con titolo e note, raccolti se vuoi in **cartelle** (es. «Istanbul»): basta scrivere il nome della cartella nella scheda del giorno. Ogni giorno ha una scaletta di attività con orario, luogo, note e fatto/da fare.
+- **Luoghi e percorsi** – il luogo di un'attività si trova cercandone il nome, toccando la mappa o incollando coordinate o un link di Google Maps. Un'attività può avere **più tappe** (passeggiate, giri): il tasto «Percorso» apre Apple Maps o Google Maps con tutte le tappe in ordine.
+- **Mappa** – tutti i luoghi dell'itinerario, numerati e uniti da una linea, con un colore per giorno. Si può guardare un giorno solo.
 - **Impostazioni** – valute e cambi (anche scritti a mano), categorie, backup, aggiornamenti.
+
+**Scaletta incollata da un testo** – una riga per attività; orario e luogo sono facoltativi, le tappe si separano con `>`:
+
+```
+9:00 Colazione
+10:30 Santa Sofia @ Sultanahmet
+16:00 Giro @ Galata > Karaköy > Eminönü
+```
 
 ## a) Attivare GitHub Pages
 
@@ -83,11 +94,15 @@ js/
   util.js               funzioni di aiuto: numeri, date, messaggi
   tastierino.js         il tastierino numerico
   scheda.js             le finestre a tutto schermo per inserire e modificare
-  scheda-spesa.js       la scheda «nuova spesa» / «modifica spesa»
+  scheda-spesa.js       la scheda di spese ed entrate
+  scheda-luogo.js       la scheda per mettere un luogo sulla mappa
+  luoghi.js             ricerca dei luoghi, coordinate incollate, link per il navigatore
+  mappa.js              creazione della mappa e dei segnaposto
   scaletta.js           legge una scaletta incollata come testo
   backup.js             esporta e importa il backup, esporta il CSV
   aggiornamenti.js      registra il service worker e gestisce le versioni nuove
-  viste/                una schermata per file: spese, cambio, itinerario, giorno, impostazioni
+  viste/                una schermata per file: spese, cambio, itinerario, giorno, mappa, impostazioni
+vendor/leaflet/         la libreria delle mappe, copiata qui per funzionare offline
 icons/                  le icone dell'app (icona.svg è il disegno originale)
 strumenti/              script per chi sviluppa; l'app non ne ha bisogno
 ```
@@ -96,16 +111,18 @@ Un buon ordine per leggere il codice: `index.html` → `js/app.js` → `js/viste
 
 ## Servizi esterni
 
-L'app usa un solo servizio esterno, gratuito e senza registrazione:
+Tutti gratuiti e senza registrazione. Se uno smettesse di esistere, il resto dell'app continuerebbe a funzionare.
 
-- **[Frankfurter](https://frankfurter.dev)** per i cambi. Vengono scaricati quando c'è rete (al massimo ogni sei ore) e salvati sul telefono. Sono cambi di riferimento: quello applicato da banca o bancomat è di solito un po' peggiore. Se vuoi conti più aderenti alla realtà, in **Impostazioni** tocca una valuta e scrivi il cambio a mano.
-
-Se un giorno il servizio non esistesse più, l'app continuerebbe a funzionare con i cambi salvati o scritti a mano.
+- **[Frankfurter](https://frankfurter.dev)** per i cambi. L'app li scarica da sola quando la apri (o la riporti in primo piano) con la rete attiva, se quelli salvati hanno più di sei ore; il tasto «Aggiorna cambi» lo fa subito. Sono cambi di riferimento, che alla fonte cambiano circa una volta al giorno: quello applicato da banca o bancomat è di solito un po' peggiore. Per conti più aderenti alla realtà, in **Impostazioni** tocca una valuta e scrivi il cambio a mano.
+- **[OpenStreetMap](https://www.openstreetmap.org)** per le immagini della mappa e per la ricerca dei luoghi (Nominatim). La ricerca parte solo quando tocchi «Cerca», al massimo una al secondo, come chiedono le regole del servizio.
+- **[Leaflet](https://leafletjs.com)**, la libreria che disegna la mappa, è copiata nella cartella `vendor/`: non viene scaricata da nessun altro sito.
 
 ## Limiti da sapere
 
 - Niente sincronizzazione fra dispositivi: i dati sono su un solo telefono. Per spostarli si usa il backup.
-- Il tasto «Naviga» per ora cerca il luogo per nome. Coordinate precise e mappa del giorno arriveranno con la fase «mappe».
+- **Mappa offline:** si rivedono solo le zone già guardate con la rete (le ultime 600 immagini circa). Prima di partire per una zona senza rete, aprila sulla mappa e ingrandiscila. La ricerca dei luoghi richiede sempre la rete; toccare la mappa e incollare coordinate funzionano anche offline.
+- **Link brevi di Google Maps** (`maps.app.goo.gl/…`): non contengono la posizione e l'app non può leggerli. Usa il link lungo, le coordinate o la ricerca.
+- «Trovali», nella schermata Mappa, prende il primo risultato della ricerca per ogni luogo senza posizione: conviene dare un'occhiata alla mappa e correggere a mano quelli sbagliati. Aggiungere la città al nome aiuta («Wat Pho Bangkok»).
 
 ## Per chi sviluppa
 
@@ -117,7 +134,6 @@ node strumenti/verifica.cjs
 
 Apre l'app in un browser di prova (serve [Playwright](https://playwright.dev)) e controlla che non ci siano errori in console, che il service worker si registri, che spese, convertitore, itinerario e backup funzionino, che l'app regga offline e che l'aggiornamento a una nuova versione vada a buon fine.
 
-## Prossime fasi
+## Prossima fase
 
-1. **Mappe** – luogo cercato per nome, toccando la mappa o incollando coordinate; mappa del giorno con i punti numerati.
-2. **Budget e grafici** – budget totale e per categoria; riepiloghi per giorno, settimana e categoria.
+**Budget e grafici** – budget per categoria; riepiloghi per giorno, settimana e categoria.
