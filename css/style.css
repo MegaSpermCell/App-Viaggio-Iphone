@@ -1,0 +1,446 @@
+/* ==========================================================================
+   Viaggio – foglio di stile
+   Ordine del file:
+     1. Colori e misure (variabili)      4. Componenti (tasti, liste, schede…)
+     2. Regole di base                   5. Regole delle singole schermate
+     3. Struttura (barra alta e bassa)
+   ========================================================================== */
+
+/* ---------- 1. Colori e misure ------------------------------------------- */
+
+:root {
+  /* Diciamo al browser che gestiamo sia il tema chiaro sia quello scuro:
+     così anche tastiera, selettori di data e barre di scorrimento si adattano. */
+  color-scheme: light dark;
+
+  --sfondo: #f5f1ec;          /* carta calda */
+  --superficie: #ffffff;      /* schede e liste */
+  --superficie-2: #ebe4dc;    /* tasti secondari, tasto premuto */
+  --testo: #221a1d;
+  --testo-tenue: #6c6165;
+  --bordo: #e0d7ce;
+  --accento: #7b2242;         /* bordeaux, il colore dell'app */
+  --accento-testo: #ffffff;   /* testo sopra il colore d'accento */
+  --accento-tenue: #f4e3ea;   /* sfondo leggero per gli elementi scelti */
+  --barra: #7b2242;           /* barra in alto */
+  --barra-testo: #ffffff;
+  --ok: #2c7a4b;
+  --pericolo: #b3261e;
+
+  --raggio: 14px;
+  --barra-bassa: 58px;        /* altezza della barra di navigazione */
+
+  /* "Safe area": i margini che l'iPhone riserva a tacca e barra Home.
+     Valgono 0 sui dispositivi che non ne hanno bisogno. */
+  --sicura-alto: env(safe-area-inset-top, 0px);
+  --sicura-basso: env(safe-area-inset-bottom, 0px);
+  --sicura-sx: env(safe-area-inset-left, 0px);
+  --sicura-dx: env(safe-area-inset-right, 0px);
+}
+
+/* Tema scuro: si attiva da solo quando il telefono è in modalità scura. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sfondo: #141012;
+    --superficie: #221b1e;
+    --superficie-2: #30272b;
+    --testo: #f3ecee;
+    --testo-tenue: #a99da2;
+    --bordo: #3a3035;
+    --accento: #e88dab;
+    --accento-testo: #2a0b17;
+    --accento-tenue: #43212e;
+    --barra: #221b1e;
+    --barra-testo: #f3ecee;
+    --ok: #7fcf9c;
+    --pericolo: #ff8a80;
+  }
+}
+
+/* ---------- 2. Regole di base -------------------------------------------- */
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+html { -webkit-text-size-adjust: 100%; }
+
+/* La pagina non scorre mai tutta insieme: restano ferme le due barre e scorre
+   solo la parte centrale (#vista). È il comportamento tipico di un'app. */
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--sfondo);
+  color: var(--testo);
+  font: 17px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;           /* niente zoom con il doppio tocco */
+}
+@supports (height: 100dvh) { body { height: 100dvh; } }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+a { -webkit-touch-callout: none; }  /* niente anteprima di iOS tenendo premuto un link */
+button { cursor: pointer; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+h2, p { margin: 0; }
+[hidden] { display: none !important; }
+
+/* Contorno ben visibile quando ci si sposta con una tastiera */
+:focus-visible { outline: 3px solid var(--accento); outline-offset: 2px; }
+
+/* Nasconde alla vista ma non ai lettori di schermo né al tocco di una <label> */
+.solo-lettori { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* ---------- 3. Struttura -------------------------------------------------- */
+
+.barra-alta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: calc(var(--sicura-alto) + 52px);
+  padding: var(--sicura-alto) max(16px, var(--sicura-dx)) 0 max(16px, var(--sicura-sx));
+  background: var(--barra);
+  color: var(--barra-testo);
+}
+.barra-alta h1 { flex: 1; margin: 0; font-size: 1.25rem; font-weight: 700; }
+.barra-alta .indietro {
+  display: grid; place-items: center;
+  width: 44px; height: 44px; margin-left: -12px;
+  color: inherit; text-decoration: none; font-size: 2rem; line-height: 1;
+}
+
+#avviso-aggiornamento {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px;
+  background: var(--accento-tenue);
+  font-size: .95rem; font-weight: 600;
+}
+
+#vista {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 16px max(16px, var(--sicura-dx)) 24px max(16px, var(--sicura-sx));
+}
+
+.barra-bassa {
+  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 0 var(--sicura-dx) var(--sicura-basso) var(--sicura-sx);
+  background: var(--superficie);
+  border-top: 1px solid var(--bordo);
+}
+.barra-bassa a {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: var(--barra-bassa);
+  color: var(--testo-tenue);
+  text-decoration: none;
+  font-size: .72rem; font-weight: 600;
+  -webkit-touch-callout: none;
+}
+.barra-bassa a[aria-current="page"] { color: var(--accento); }
+.barra-bassa svg {
+  width: 26px; height: 26px;
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Messaggio breve che compare sopra la barra alta e sparisce da solo.
+   Sta lì apposta: copre per un attimo solo il titolo, mai i dati. */
+#toast {
+  position: fixed;
+  top: calc(var(--sicura-alto) + 5px);
+  left: 50%;
+  z-index: 10;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--testo);
+  color: var(--sfondo);
+  font-size: .95rem; font-weight: 600; text-align: center;
+  opacity: 0;
+  transform: translate(-50%, -12px);
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+}
+#toast.visibile { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- 4. Componenti ------------------------------------------------- */
+
+/* Tasti */
+.tasto {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--raggio);
+  background: var(--accento);
+  color: var(--accento-testo);
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+}
+.tasto.secondario { background: var(--superficie-2); color: var(--testo); }
+.tasto.pericolo { background: none; color: var(--pericolo); border: 1.5px solid currentColor; }
+.tasto.largo { width: 100%; }
+.tasto-testo {
+  min-height: 44px; padding: 0 10px;
+  border: 0; background: none;
+  color: var(--accento); font-weight: 650;
+}
+.tasto:active, .tasto-testo:active, .tasto-fluttuante:active, .tasto-naviga:active { opacity: .65; }
+
+/* Tasto rotondo "+" sempre a portata di pollice */
+.tasto-fluttuante {
+  position: fixed;
+  right: max(18px, var(--sicura-dx));
+  bottom: calc(var(--barra-bassa) + var(--sicura-basso) + 18px);
+  width: 64px; height: 64px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%;
+  background: var(--accento);
+  color: var(--accento-testo);
+  font-size: 2.3rem; font-weight: 400; line-height: 1;
+  box-shadow: 0 6px 18px rgb(0 0 0 / .28);
+}
+
+/* Righe di pulsanti affiancati (.azioni) o impilati (.colonna) */
+.azioni { display: flex; gap: 10px; margin-top: 14px; }
+.azioni > * { flex: 1; }
+.colonna { display: flex; flex-direction: column; gap: 10px; }
+
+/* Schede e liste */
+.carta { background: var(--superficie); border-radius: var(--raggio); padding: 14px 16px; }
+.lista { list-style: none; margin: 0; padding: 0; background: var(--superficie); border-radius: var(--raggio); overflow: hidden; }
+.lista > li + li { border-top: 1px solid var(--bordo); }
+
+.riga {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 62px;
+  padding: 9px 14px;
+  border: 0; background: none;
+  text-align: left;
+}
+button.riga:active { background: var(--superficie-2); }
+.riga-testo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.riga-testo > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.riga-testo small, .riga-importo small { color: var(--testo-tenue); font-size: .82rem; }
+.riga-importo {
+  display: flex; flex-direction: column; align-items: flex-end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;     /* cifre tutte larghe uguali: i numeri si allineano */
+}
+.emoji { flex: none; width: 36px; font-size: 1.6rem; text-align: center; }
+.freccia { color: var(--testo-tenue); font-size: 1.4rem; }
+
+.titolo-sezione {
+  display: flex; justify-content: space-between; gap: 12px;
+  margin: 22px 4px 8px;
+  color: var(--testo-tenue);
+  font-size: .8rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.titolo-sezione:first-child { margin-top: 4px; }
+.etichetta { color: var(--testo-tenue); font-size: .82rem; font-weight: 600; }
+.nota { margin: 8px 4px 0; color: var(--testo-tenue); font-size: .88rem; }
+.vuoto { margin: 40px 16px; color: var(--testo-tenue); text-align: center; }
+
+/* Campi dei moduli. I 17px evitano che iOS ingrandisca la pagina quando si scrive. */
+.campo-etichetta { display: flex; flex-direction: column; gap: 6px; color: var(--testo-tenue); font-size: .88rem; font-weight: 600; }
+.campo {
+  display: block;
+  width: 100%; min-height: 50px;
+  padding: 11px 14px;
+  border: 1.5px solid var(--bordo);
+  border-radius: 12px;
+  background: var(--superficie);
+  color: var(--testo);
+  font-size: 17px; font-weight: 400; text-align: left;
+  -webkit-appearance: none; appearance: none;
+}
+.campo:focus { outline: none; border-color: var(--accento); }
+textarea.campo { min-height: 104px; resize: vertical; }
+textarea.campo.alto { min-height: 220px; }
+
+/* Scelta fra poche opzioni (valute, tipo di mappa) */
+.pillole { display: flex; gap: 8px; }
+.pillole button {
+  flex: 1; min-height: 46px; padding: 0 8px;
+  border: 1.5px solid var(--bordo); border-radius: 999px;
+  background: var(--superficie);
+  font-weight: 650;
+}
+.pillole button[aria-pressed="true"] { background: var(--accento); border-color: var(--accento); color: var(--accento-testo); }
+
+/* Tastierino numerico */
+.tastierino { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.tastierino button {
+  height: 52px;
+  border: 0; border-radius: 12px;
+  background: var(--superficie);
+  font-size: 1.5rem; font-weight: 500;
+}
+.tastierino button:active { background: var(--superficie-2); }
+
+/* Scheda a tutto schermo (un <dialog>) */
+dialog.scheda {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0;
+  background: var(--sfondo); color: var(--testo);
+}
+dialog.scheda[open] { animation: sale .2s ease-out; }
+@keyframes sale { from { opacity: 0; transform: translateY(20px); } }
+
+.scheda form { display: flex; flex-direction: column; height: 100%; }
+/* La testata ha lo stesso colore scuro della barra alta: sull'iPhone l'orologio in
+   cima allo schermo è scritto in bianco e su un fondo chiaro non si leggerebbe. */
+.scheda-testa {
+  flex: none;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: calc(var(--sicura-alto) + 4px) 8px 4px;
+  background: var(--barra);
+  color: var(--barra-testo);
+}
+.scheda-testa h2 { font-size: 1.05rem; text-align: center; }
+.scheda-testa .tasto-testo { color: inherit; }
+.scheda-testa > :first-child { justify-self: start; }
+.scheda-testa > :last-child { justify-self: end; }
+.scheda-corpo {
+  flex: 1;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px max(16px, var(--sicura-dx)) calc(var(--sicura-basso) + 12px) max(16px, var(--sicura-sx));
+}
+.scheda-corpo .nota { margin: 0; }
+.esempio {
+  margin: 0; padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--superficie-2);
+  font: .85rem/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+}
+
+/* Chi ha chiesto meno animazioni nelle impostazioni del telefono non ne vede */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- 5. Schermate -------------------------------------------------- */
+
+/* Spese: spazio in fondo, così l'ultima riga non resta sotto il tasto "+" */
+#vista[data-vista="spese"] { padding-bottom: 110px; }
+
+.riepilogo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.riepilogo strong { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+
+.avviso {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 10px; padding: 6px 6px 6px 14px;
+  border-radius: var(--raggio);
+  background: var(--accento-tenue);
+  font-size: .9rem;
+}
+
+/* Scheda "nuova spesa" */
+.importo-grande {
+  display: flex; align-items: baseline; justify-content: center; gap: 8px;
+  font-size: 2.8rem; font-weight: 700; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.importo-grande .sigla { color: var(--testo-tenue); font-size: 1.1rem; }
+.importo-eur { min-height: 1.35em; color: var(--testo-tenue); text-align: center; }
+.suggerimento { color: var(--testo-tenue); font-size: .85rem; font-weight: 600; text-align: center; }
+.suggerimento.errore { color: var(--pericolo); }
+.scuoti { animation: scuoti .3s; }
+@keyframes scuoti { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+
+.griglia-categorie { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.griglia-categorie button {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 62px; padding: 5px 4px;
+  border: 1.5px solid transparent; border-radius: 12px;
+  background: var(--superficie);
+  font-size: .76rem; font-weight: 600; line-height: 1.15; text-align: center;
+}
+.griglia-categorie button:active { background: var(--superficie-2); }
+.griglia-categorie button[aria-pressed="true"] { border-color: var(--accento); background: var(--accento-tenue); }
+.griglia-categorie .emoji { width: auto; font-size: 1.45rem; }
+
+/* Convertitore: le valute in alto, il tastierino fermo in basso vicino al pollice.
+   Se le valute sono tante scorre solo il loro elenco, non tutta la schermata. */
+#vista[data-vista="cambio"] { display: flex; flex-direction: column; overflow: hidden; padding-top: 12px; padding-bottom: 12px; }
+.convertitore { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.righe-valute { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.riga-valuta {
+  flex: none;
+  min-height: 0; padding: 5px 12px;
+  border: 2px solid transparent; border-radius: var(--raggio);
+  background: var(--superficie);
+}
+.riga-valuta[aria-pressed="true"] { border-color: var(--accento); background: var(--accento-tenue); }
+.riga-valuta .riga-importo strong { font-size: 1.35rem; line-height: 1.2; }
+.riga-valuta small { line-height: 1.25; }
+.convertitore .nota { margin: 0 4px; font-size: .82rem; }
+.convertitore .azioni { margin-top: 0; }
+.convertitore .azioni .tasto { min-height: 46px; padding: 0 8px; font-size: .92rem; }
+.convertitore .tastierino button { height: 50px; }
+.bandiera { flex: none; width: 36px; font-size: 1.8rem; text-align: center; }
+
+/* Itinerario */
+.giorno-carta {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 10px; padding: 12px 14px;
+  color: inherit; text-decoration: none;
+  border: 2px solid transparent;
+}
+.giorno-carta.oggi { border-color: var(--accento); }
+.giorno-carta:active { background: var(--superficie-2); }
+.data-blocco {
+  flex: none;
+  display: flex; flex-direction: column; align-items: center;
+  width: 56px; padding: 6px 0;
+  border-radius: 12px;
+  background: var(--accento-tenue); color: var(--accento);
+  line-height: 1.1;
+}
+.data-blocco strong { font-size: 1.4rem; }
+.data-blocco small { font-size: .7rem; font-weight: 700; text-transform: uppercase; }
+
+/* Pagina di un giorno */
+.testata-giorno { display: flex; align-items: flex-start; gap: 8px; }
+.testata-giorno > div { flex: 1; min-width: 0; }
+.testata-giorno h2 { font-size: 1.2rem; }
+.testo-libero { margin-top: 4px; color: var(--testo-tenue); font-size: .92rem; white-space: pre-line; overflow-wrap: anywhere; }
+
+.attivita { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; }
+.spunta {
+  flex: none;
+  width: 44px; height: 44px;
+  border: 2px solid var(--bordo); border-radius: 50%;
+  background: none; color: transparent;
+  font-size: 1.3rem; font-weight: 700;
+}
+.spunta[aria-checked="true"] { background: var(--ok); border-color: var(--ok); color: var(--superficie); }
+.attivita-testo {
+  flex: 1; min-width: 0; min-height: 44px;
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  padding: 0; border: 0; background: none;
+  text-align: left; overflow-wrap: anywhere;
+}
+.attivita-testo small { color: var(--testo-tenue); font-size: .85rem; }
+.attivita .ora { color: var(--accento); font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.attivita.fatta .attivita-testo strong { color: var(--testo-tenue); text-decoration: line-through; }
+.tasto-naviga {
+  flex: none; align-self: center;
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 13px;
+  border-radius: 999px;
+  background: var(--accento-tenue); color: var(--accento);
+  font-size: .88rem; font-weight: 650; text-decoration: none;
+}
