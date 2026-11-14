@@ -64,7 +64,9 @@
 * { box-sizing: border-box; }
 
 html, body { margin: 0; }
-html { height: 100%; -webkit-text-size-adjust: 100%; }
+/* Anche la pagina "esterna" resta ferma: niente scorrimento né effetto elastico,
+   che su iPhone potevano lasciare tutta la schermata spostata verso l'alto. */
+html { height: 100%; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
 /* La pagina non scorre mai tutta insieme: restano ferme le due barre e scorre
    solo la parte centrale (#vista). È il comportamento tipico di un'app.

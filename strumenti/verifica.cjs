@@ -619,6 +619,16 @@ async function provaNelBrowser(indirizzo) {
   controllo('un tocco normale apre ancora la cartella', (await pagina.textContent('#titolo')) === 'Turchia');
   await schermata(pagina, '16-dentro-cartella');
 
+  // Dentro la cartella scorro in basso, poi esco: l'elenco principale deve partire dall'alto.
+  await pagina.setViewportSize({ width: 390, height: 420 }); // schermo basso: così c'è da scorrere
+  await pagina.evaluate(() => { document.querySelector('#vista').scrollTop = 500; window.scrollTo(0, 300); });
+  const scorso = await pagina.evaluate(() => document.querySelector('#vista').scrollTop);
+  await pagina.click('#indietro');
+  await pagina.waitForSelector('.cartella-carta');
+  const posizione = await pagina.evaluate(() => ({ vista: document.querySelector('#vista').scrollTop, pagina: window.scrollY, barra: document.querySelector('.barra-alta').getBoundingClientRect().top }));
+  controllo('uscendo da una cartella scorsa in basso si riparte dall’alto', scorso > 0 && posizione.vista === 0 && posizione.pagina === 0 && posizione.barra === 0, `prima ${scorso}px, dopo ${JSON.stringify(posizione)}`);
+  await pagina.setViewportSize(SCHERMO);
+
   await pagina.click('.barra-bassa [data-scheda="mappa"]');
   await pagina.waitForFunction(() => document.querySelectorAll('.segnaposto').length === 3);
   controllo('mappa: la tappa con coordinate compare, le altre sono «da trovare»', (await pagina.textContent('.avviso')).includes('2 luoghi'));

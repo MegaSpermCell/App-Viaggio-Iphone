@@ -40,6 +40,18 @@ function rottaCorrente() {
   return { nome: ROTTE[nome] ? nome : ROTTA_INIZIALE, parametro };
 }
 
+let paginaPrecedente = null;
+
+/**
+ * Riporta tutto all'inizio: lo scorrimento della schermata e anche quello
+ * dell'intera pagina, che su iPhone a volte resta spostata verso l'alto
+ * (dopo uno scorrimento "a elastico" o dopo la chiusura della tastiera).
+ */
+function rimettiInAlto() {
+  contenitore.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
 /** Disegna la schermata che corrisponde all'indirizzo attuale. */
 async function mostraVista() {
   const { nome, parametro } = rottaCorrente();
@@ -67,6 +79,14 @@ async function mostraVista() {
   }
   contenitore.dataset.vista = nome; // serve anche al CSS
 
+  // È cambiata la pagina (anche restando nella stessa schermata, per esempio
+  // uscendo da una cartella)? Allora si riparte dall'alto: senza questo la pagina
+  // nuova comparirebbe già scorsa di quanto lo era quella di prima.
+  const pagina = `${nome}/${parametro ?? ''}`;
+  const paginaCambiata = pagina !== paginaPrecedente;
+  paginaPrecedente = pagina;
+  if (paginaCambiata) rimettiInAlto();
+
   try {
     // La vista può restituire un titolo suo (un testo) oppure { titolo, indietro }
     // per decidere anche dove porta la freccia "indietro".
@@ -77,6 +97,7 @@ async function mostraVista() {
       frecciaIndietro.hidden = false;
       frecciaIndietro.href = scelte.indietro;
     }
+    if (paginaCambiata) rimettiInAlto(); // di nuovo, ora che il contenuto nuovo è al suo posto
   } catch (errore) {
     console.error(errore);
     contenitore.innerHTML = '<p class="vuoto">Qualcosa è andato storto.<br>Chiudi e riapri l’app.</p>';
@@ -99,6 +120,15 @@ mostraVista();
 chiediPersistenza();      // chiede al telefono di non cancellare mai i dati
 registraServiceWorker();  // funzionamento offline e aggiornamenti
 controllaCambi();
+
+// Quando si chiude la tastiera (nessun campo ha più il "fuoco"), iOS può lasciare
+// la pagina spostata verso l'alto: la rimettiamo a posto.
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    const staScrivendo = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    if (!staScrivendo) window.scrollTo(0, 0);
+  }, 100);
+});
 
 // Un'app sulla schermata Home resta aperta in sottofondo anche per giorni:
 // quando torna in primo piano ricontrolliamo i cambi.
