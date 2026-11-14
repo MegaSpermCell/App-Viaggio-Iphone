@@ -9,7 +9,7 @@
 // │  2. se aggiungi un file all'app, aggiungilo anche all'elenco FILE.        │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-const VERSIONE = 'v2';
+const VERSIONE = 'v3';
 const CACHE = `viaggio-${VERSIONE}`;
 
 // Tutti i file che servono per funzionare offline.

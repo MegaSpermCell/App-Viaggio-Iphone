@@ -510,6 +510,13 @@ async function provaNelBrowser(indirizzo) {
   const cacheRimaste = await pagina.evaluate(() => caches.keys());
   controllo('la cache della versione vecchia è stata eliminata', cacheRimaste.filter((nome) => nome.startsWith('viaggio-')).join() === 'viaggio-v2-prova', cacheRimaste.join());
   controllo('le tessere della mappa salvate restano', cacheRimaste.includes('mappe-viaggio'));
+
+  // Caso difficile: online c'è un'altra versione ma l'aggiornamento normale non la vede.
+  await pagina.evaluate(() => { ServiceWorkerRegistration.prototype.update = async () => {}; });
+  server.versioneFinta = 'v3-prova';
+  await Promise.all([pagina.waitForEvent('load'), pagina.click('#controlla-aggiornamenti')]); // il confirm() riceve "OK"
+  await pagina.waitForFunction(async () => (await caches.keys()).includes('viaggio-v3-prova'), null, { timeout: 15_000, polling: 300 });
+  controllo('aggiornamento bloccato: i file vengono riscaricati e i dati restano', (await leggiDalDb(pagina, 'spese')).length === 4);
   server.versioneFinta = null;
 
   // ---- Entrate e saldo disponibile ----
@@ -569,6 +576,7 @@ async function provaNelBrowser(indirizzo) {
   await schermata(pagina, '14-attivita-con-tappe');
   await pagina.click('dialog[open] button[type="submit"]');
   await pagina.waitForSelector('dialog[open]', { state: 'detached' });
+  await pagina.waitForFunction(() => document.querySelector('.tasto-naviga')?.href.includes('driving')).catch(() => {});
   const percorso = await pagina.getAttribute('.tasto-naviga', 'href');
   controllo('percorso con tre tappe, in auto', percorso === 'https://www.google.com/maps/dir/?api=1&destination=13.75%2C100.4913&waypoints=Wat%20Pho%20Bangkok%7CWat%20Arun%20Bangkok&travelmode=driving', percorso);
 

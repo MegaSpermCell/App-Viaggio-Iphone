@@ -5,7 +5,7 @@ import { leggiImpostazione, salvaImpostazione, datiProtetti } from '../db.js';
 import { leggiValute, salvaValute, leggiCategorie, salvaCategorie, VALUTA_BASE } from '../dati.js';
 import { caricaCambi, tasso, aggiornaCambi, impostaCambioManuale, descriviAggiornamento } from '../cambi.js';
 import { preparaBackup, preparaCsv, consegnaFile, segnaBackupFatto, leggiBackup, ripristinaBackup } from '../backup.js';
-import { controllaAggiornamenti, versioneApp } from '../aggiornamenti.js';
+import { controllaAggiornamenti, reinstallaFile, versioneApp } from '../aggiornamenti.js';
 import { apriScheda, segnalaCampo } from '../scheda.js';
 import { esc, nuovoId, bandiera, nomeValuta, formattaNumero, leggiNumero, numeroInTesto, toast } from '../util.js';
 
@@ -182,7 +182,15 @@ export async function mostra(main) {
       offline: 'Sei offline: riprova quando c’è rete',
       'non-disponibile': 'Aggiornamenti non disponibili in questo browser',
     };
-    toast(messaggi[await controllaAggiornamenti()]);
+    const esito = await controllaAggiornamenti();
+    if (esito !== 'bloccata') {
+      toast(messaggi[esito]);
+      return;
+    }
+    // Online c'è una versione nuova ma il telefono non riesce a prenderla nel modo normale.
+    const domanda = 'C’è una versione nuova, ma l’aggiornamento automatico non parte.\n'
+      + 'Vuoi scaricare di nuovo i file dell’app? I tuoi dati non vengono toccati.';
+    if (confirm(domanda)) reinstallaFile();
   });
 }
 

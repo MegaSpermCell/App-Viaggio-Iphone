@@ -13,7 +13,9 @@ export async function registraServiceWorker() {
   if (!('serviceWorker' in navigator)) return; // browser molto vecchio: l'app va, ma solo online
 
   try {
-    registrazione = await navigator.serviceWorker.register('sw.js');
+    // updateViaCache: 'none' = quando si cerca una versione nuova, sw.js va sempre
+    // chiesto al server e mai preso da una copia tenuta dal browser.
+    registrazione = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
   } catch (errore) {
     console.warn('Service worker non registrato:', errore);
     return;
@@ -58,7 +60,8 @@ function mostraAvviso() {
 
 /**
  * Controllo manuale (pulsante nelle Impostazioni).
- * Restituisce 'nuova', 'aggiornata', 'offline' oppure 'non-disponibile'.
+ * Restituisce 'nuova', 'aggiornata', 'offline', 'non-disponibile' oppure
+ * 'bloccata': online c'è una versione diversa ma il telefono non la scarica.
  */
 export async function controllaAggiornamenti() {
   if (!registrazione) return 'non-disponibile';
@@ -68,7 +71,32 @@ export async function controllaAggiornamenti() {
   } catch {
     return 'offline';
   }
-  return registrazione.installing || registrazione.waiting ? 'nuova' : 'aggiornata';
+  if (registrazione.installing || registrazione.waiting) return 'nuova';
+
+  // Seconda verifica, indipendente: leggo sw.js direttamente dal server e
+  // confronto la sua versione con quella installata.
+  try {
+    const risposta = await fetch(`sw.js?controllo=${Date.now()}`, { cache: 'no-store' });
+    const versioneOnline = (await risposta.text()).match(/const VERSIONE = '([^']+)'/)?.[1];
+    if (versioneOnline && versioneOnline !== (await versioneApp())) return 'bloccata';
+  } catch {
+    // se questa verifica non riesce ci si fida della prima
+  }
+  return 'aggiornata';
+}
+
+/**
+ * Ultima risorsa quando l'aggiornamento normale non parte: toglie il service
+ * worker e le copie dei file dell'app, poi ricarica tutto dal server.
+ * I dati (spese, itinerario, impostazioni) NON vengono toccati: stanno in
+ * IndexedDB, che è un'altra cosa rispetto alla cache dei file.
+ */
+export async function reinstallaFile() {
+  await registrazione?.unregister();
+  for (const nome of await caches.keys()) {
+    if (nome.startsWith('viaggio-')) await caches.delete(nome);
+  }
+  location.reload();
 }
 
 /** Versione installata, letta dal nome della cache creata da sw.js (es. "viaggio-v3" → "v3"). */
